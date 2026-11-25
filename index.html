@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="theme-color" content="#060910" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="UMB 3D" />
+    <meta
+      name="description"
+      content="Phone-first 3D UMass Boston campus wayfinding PWA. Load your class schedule locally and follow a 3D FSD-style walking route to class."
+    />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <title>UMB Campus 3D — Wayfinding</title>
+  </head>
+  <body>
+    <div id="app">
+      <!-- Full-bleed 3D WebGL viewport -->
+      <div id="viewport" aria-label="3D UMass Boston campus map"></div>
+      <div id="label-layer" aria-hidden="false"></div>
+
+      <!-- Top HUD bar -->
+      <header class="hud-top">
+        <div class="brand-pill">
+          <span class="beacon-dot" aria-hidden="true"></span>
+          <span class="brand-title">UMB 3D</span>
+          <span class="brand-sub">Columbia Point</span>
+        </div>
+
+        <div class="hud-controls">
+          <div class="segmented" role="group" aria-label="Camera mode">
+            <button id="btn-cam-chase" type="button" class="seg-btn is-active" data-mode="chase">
+              Chase
+            </button>
+            <button id="btn-cam-top" type="button" class="seg-btn" data-mode="topdown">
+              Top-Down
+            </button>
+          </div>
+          <button
+            id="btn-recenter"
+            type="button"
+            class="icon-btn"
+            title="Recenter camera"
+            aria-label="Recenter camera"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Active route telemetry HUD -->
+      <div id="route-hud" class="route-hud is-hidden" aria-live="polite">
+        <div class="route-hud-row">
+          <div class="route-meta">
+            <div class="route-dest" id="route-dest-name">—</div>
+            <div class="route-stats">
+              <span id="route-eta">— min</span>
+              <span class="sep">·</span>
+              <span id="route-dist">— m</span>
+              <span class="sep">·</span>
+              <span id="route-origin-label">from JFK/UMass</span>
+            </div>
+          </div>
+          <div class="route-actions">
+            <button id="btn-play-pause" type="button" class="icon-btn" aria-label="Pause or resume walk" title="Pause / Resume">
+              <svg id="icon-pause" viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                <rect x="6" y="5" width="4" height="14" rx="1" />
+                <rect x="14" y="5" width="4" height="14" rx="1" />
+              </svg>
+              <svg id="icon-play" class="is-hidden" viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                <path d="M7 5.5v13l11-6.5z" />
+              </svg>
+            </button>
+            <button id="btn-replay" type="button" class="icon-btn" aria-label="Replay walk" title="Replay walk">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="route-progress-track">
+          <div id="route-progress-bar" class="route-progress-bar"></div>
+        </div>
+      </div>
+
+      <!-- Phone-first bottom sheet / desktop left rail -->
+      <aside id="panel" class="panel" aria-label="Schedule and routing controls">
+        <button id="sheet-toggle" type="button" class="sheet-handle" aria-label="Toggle schedule panel">
+          <span class="handle-bar"></span>
+        </button>
+
+        <div class="panel-header">
+          <div>
+            <h1 class="panel-title">Class Wayfinder</h1>
+            <p class="panel-subtitle" id="status-line">100% on-device · schedules never leave your device</p>
+          </div>
+          <button id="btn-collapse-mobile" type="button" class="chip-btn mobile-only" aria-label="Minimize panel">
+            Map
+          </button>
+        </div>
+
+        <div class="panel-body">
+          <!-- Start point selector -->
+          <div class="field-row">
+            <label for="start-select" class="field-label">Start from</label>
+            <select id="start-select" class="select-input"></select>
+          </div>
+
+          <!-- Empty / intake state -->
+          <div id="intake-view" class="intake-view">
+            <button id="btn-demo" type="button" class="btn-primary">
+              <span class="btn-glow-dot"></span>
+              Try demo schedule
+            </button>
+
+            <div class="intake-grid">
+              <label class="btn-secondary file-trigger">
+                <input id="file-input" type="file" accept=".ics,.pdf,text/calendar,application/pdf" hidden />
+                Upload .ics / PDF
+              </label>
+              <button id="btn-toggle-paste" type="button" class="btn-secondary">
+                Paste text
+              </button>
+            </div>
+          </div>
+
+          <!-- Paste text drawer -->
+          <div id="paste-box" class="paste-box is-hidden">
+            <textarea
+              id="paste-input"
+              class="paste-textarea"
+              rows="4"
+              placeholder="Paste schedule lines, e.g.&#10;CS 240 | MWF 10:00 AM | M-01-0408&#10;BIOL 112 | TuTh 12:30 PM | ISC 2-2003"
+            ></textarea>
+            <div class="paste-actions">
+              <button id="btn-parse-paste" type="button" class="btn-primary btn-sm">Find classes</button>
+              <button id="btn-cancel-paste" type="button" class="btn-ghost btn-sm">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Schedule list state -->
+          <div id="schedule-view" class="schedule-view is-hidden">
+            <div class="schedule-toolbar">
+              <span id="schedule-count" class="schedule-count">0 classes</span>
+              <div class="toolbar-actions">
+                <label class="chip-btn file-trigger">
+                  <input id="file-input-inline" type="file" accept=".ics,.pdf,text/calendar,application/pdf" hidden />
+                  + File
+                </label>
+                <button id="btn-paste-inline" type="button" class="chip-btn">+ Paste</button>
+                <button id="btn-clear" type="button" class="chip-btn">Clear</button>
+              </div>
+            </div>
+            <div id="class-list" class="class-list" role="listbox" aria-label="Loaded classes"></div>
+          </div>
+
+          <div id="error-banner" class="error-banner is-hidden" role="alert"></div>
+        </div>
+      </aside>
+
+      <!-- OSM Attribution -->
+      <footer class="osm-credit">
+        <span>(c) OpenStreetMap contributors, ODbL</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "umb-campus-3d",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Phone-first 3D UMass Boston campus wayfinding PWA in three.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "fetch-osm": "node scripts/fetch-osm.mjs"
+  },
+  "dependencies": {
+    "ical.js": "^2.1.0",
+    "pdfjs-dist": "^5.3.31",
+    "three": "^0.177.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.177.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
