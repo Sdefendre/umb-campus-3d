@@ -173,14 +173,6 @@ export class CampusFootwayGraph {
     for (const id of best) this.mainComponent.add(id);
   }
 
-  get nodeCount(): number {
-    return this.nodes.length;
-  }
-
-  get mainComponentSize(): number {
-    return this.mainComponent.size;
-  }
-
   findNearestNode(target: Point2D, preferOutdoor = true): number {
     let bestId = -1;
     let bestDist = Infinity;
@@ -211,10 +203,12 @@ export class CampusFootwayGraph {
     const goalId = this.findNearestNode(goal);
     if (startId < 0 || goalId < 0) return null;
 
+    const startToFirst = dist2D(start, this.nodes[startId].point);
+
     if (startId === goalId) {
       return {
         points: [this.nodes[startId].point, goal],
-        distanceMeters: dist2D(this.nodes[startId].point, goal),
+        distanceMeters: startToFirst + dist2D(this.nodes[startId].point, goal),
       };
     }
 
@@ -264,7 +258,7 @@ export class CampusFootwayGraph {
 
     return {
       points: pathPoints,
-      distanceMeters: distScore[goalId],
+      distanceMeters: startToFirst + distScore[goalId],
     };
   }
 }
