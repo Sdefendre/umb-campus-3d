@@ -3,8 +3,13 @@ import { MAJOR_BUILDINGS, START_POINTS, matchOsmMajorBuilding } from './building
 import { LocalProjector, polygonCentroid } from './geo';
 import { CampusFootwayGraph } from './graph';
 import { CampusScene } from './scene';
-import { parseIcsSchedule, parsePdfSchedule, parseTextSchedule } from './schedule';
 import type { BuildingRecord, CameraMode, CampusGeoJSON, ClassItem, Point2D } from './types';
+
+let scheduleModPromise: Promise<typeof import('./schedule')> | null = null;
+function loadScheduleParser(): Promise<typeof import('./schedule')> {
+  if (!scheduleModPromise) scheduleModPromise = import('./schedule');
+  return scheduleModPromise;
+}
 
 // DOM references
 const viewportEl = document.getElementById('viewport')!;
@@ -210,6 +215,7 @@ async function handleFile(file: File): Promise<void> {
   clearError();
   const lower = file.name.toLowerCase();
   try {
+    const { parseIcsSchedule, parsePdfSchedule, parseTextSchedule } = await loadScheduleParser();
     if (lower.endsWith('.ics') || file.type === 'text/calendar') {
       const text = await file.text();
       applyParsedClasses(parseIcsSchedule(text), file.name);
@@ -230,7 +236,10 @@ async function handleFile(file: File): Promise<void> {
 async function loadDemoSchedule(): Promise<void> {
   clearError();
   try {
-    const res = await fetch('./data/demo-schedule.ics');
+    const [res, { parseIcsSchedule }] = await Promise.all([
+      fetch('./data/demo-schedule.ics'),
+      loadScheduleParser(),
+    ]);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const icsText = await res.text();
     const parsed = parseIcsSchedule(icsText);
@@ -337,7 +346,9 @@ btnPasteInlineEl.addEventListener('click', openPasteBox);
 btnCancelPasteEl.addEventListener('click', () => pasteBoxEl.classList.add('is-hidden'));
 
 btnParsePasteEl.addEventListener('click', () => {
-  applyParsedClasses(parseTextSchedule(pasteInputEl.value), 'Pasted schedule');
+  void loadScheduleParser().then(({ parseTextSchedule }) => {
+    applyParsedClasses(parseTextSchedule(pasteInputEl.value), 'Pasted schedule');
+  });
 });
 
 btnClearEl.addEventListener('click', () => {
