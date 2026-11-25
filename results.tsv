@@ -1,3 +1,4 @@
 experiment	commit	score	delta	parser	routing	phoneFps	lighthousePwa	bundleGzip	realism	status	idea
 baseline	02c0328	84.53	0.00	100.00	78.33	99.88	98.20	73.31	45.51	baseline	Post-M1-fixes baseline on t3/umb-eval-harness
 exp-01	6f44ee3	88.86	+4.33	100.00	100.00	99.88	98.20	73.28	45.51	kept	Strict outdoor footway graph excluding building-crossing and covered edges
+exp-02	0281073	92.25	+3.39	100.00	100.00	99.88	96.45	73.28	69.85	kept	Calibrate building heights with City of Boston BPDA 2010 LiDAR + OSM levels
