@@ -1,0 +1,20 @@
+[
+  { "startId": "jfk-walkway", "buildingId": "mccormack" },
+  { "startId": "jfk-walkway", "buildingId": "wheatley" },
+  { "startId": "jfk-walkway", "buildingId": "healey" },
+  { "startId": "jfk-walkway", "buildingId": "uhall" },
+  { "startId": "jfk-walkway", "buildingId": "isc" },
+  { "startId": "jfk-walkway", "buildingId": "campus-center" },
+  { "startId": "jfk-walkway", "buildingId": "quinn" },
+  { "startId": "jfk-walkway", "buildingId": "clark" },
+  { "startId": "campus-center-shuttle", "buildingId": "mccormack" },
+  { "startId": "campus-center-shuttle", "buildingId": "wheatley" },
+  { "startId": "campus-center-shuttle", "buildingId": "healey" },
+  { "startId": "campus-center-shuttle", "buildingId": "uhall" },
+  { "startId": "campus-center-shuttle", "buildingId": "isc" },
+  { "startId": "campus-center-shuttle", "buildingId": "clark" },
+  { "startId": "west-garage", "buildingId": "mccormack" },
+  { "startId": "west-garage", "buildingId": "uhall" },
+  { "startId": "west-garage", "buildingId": "isc" },
+  { "startId": "west-garage", "buildingId": "campus-center" }
+]

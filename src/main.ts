@@ -292,6 +292,26 @@ async function loadCampusData(): Promise<void> {
 
   graph = new CampusFootwayGraph(paths, buildings);
   scene.loadCampus(buildings, paths);
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('evalView') === '1') {
+    document.querySelector('.hud-top')?.classList.add('is-hidden');
+    panelEl.classList.add('is-hidden');
+    routeHudEl.classList.add('is-hidden');
+    labelLayerEl.classList.add('is-hidden');
+    document.querySelector('.osm-credit')?.classList.add('is-hidden');
+  }
+  const evalCam = params.get('evalCam');
+  if (evalCam) {
+    const nums = evalCam.split(',').map(Number);
+    if (nums.length >= 6 && nums.every(Number.isFinite)) {
+      scene.setFixedCamera(
+        [nums[0], nums[1], nums[2]],
+        [nums[3], nums[4], nums[5]],
+        nums.length >= 7 ? nums[6] : undefined
+      );
+    }
+  }
 }
 
 // Event bindings

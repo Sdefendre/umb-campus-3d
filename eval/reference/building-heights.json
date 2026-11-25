@@ -1,0 +1,709 @@
+{
+  "description": "Cited reference building heights for UMass Boston (Columbia Point) realism evaluation. Buildings without a reliable cited source (including post-2010 ISC and University Hall where BPDA BLDG_HGT_2010 holds 35ft placeholders and OSM omits height/levels) are excluded.",
+  "generatedAt": "2026-11-25T23:11:57.701Z",
+  "buildings": [
+    {
+      "osmId": "way/29609158",
+      "name": "way/29609158",
+      "referenceHeightM": 6.2,
+      "maxRoofHeightM": 6.2,
+      "bpdaObjectId": 690453,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690453; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29611121",
+      "name": "way/29611121",
+      "referenceHeightM": 7.7,
+      "maxRoofHeightM": 10.9,
+      "bpdaObjectId": 690259,
+      "bpdaPartCount": 6,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690259; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29614947",
+      "name": "way/29614947",
+      "referenceHeightM": 6.8,
+      "maxRoofHeightM": 6.8,
+      "bpdaObjectId": 739214,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739214; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29615355",
+      "name": "Quinn Administration Building",
+      "referenceHeightM": 20.4,
+      "maxRoofHeightM": 20.4,
+      "bpdaObjectId": 762748,
+      "bpdaPartCount": 2,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762748; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29617890",
+      "name": "way/29617890",
+      "referenceHeightM": 6.1,
+      "maxRoofHeightM": 9,
+      "bpdaObjectId": 690467,
+      "bpdaPartCount": 7,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690467; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29618565",
+      "name": "Paul A. Dever Elementary School",
+      "referenceHeightM": 8.1,
+      "maxRoofHeightM": 9,
+      "bpdaObjectId": 694054,
+      "bpdaPartCount": 5,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 694054; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29619182",
+      "name": "Tunnel West Point",
+      "referenceHeightM": 7.1,
+      "maxRoofHeightM": 7.1,
+      "bpdaObjectId": 694310,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 694310; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29620322",
+      "name": "way/29620322",
+      "referenceHeightM": 6,
+      "maxRoofHeightM": 6,
+      "bpdaObjectId": 739063,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739063; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29621270",
+      "name": "way/29621270",
+      "referenceHeightM": 7.9,
+      "maxRoofHeightM": 7.9,
+      "bpdaObjectId": 679509,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679509; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29621673",
+      "name": "way/29621673",
+      "referenceHeightM": 7.6,
+      "maxRoofHeightM": 7.6,
+      "bpdaObjectId": 739126,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739126; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29624432",
+      "name": "way/29624432",
+      "referenceHeightM": 4.5,
+      "maxRoofHeightM": 4.5,
+      "bpdaObjectId": 690545,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690545; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29624679",
+      "name": "way/29624679",
+      "referenceHeightM": 11.4,
+      "maxRoofHeightM": 11.4,
+      "bpdaObjectId": 739194,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739194; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29625292",
+      "name": "Wheatley Hall",
+      "referenceHeightM": 23.7,
+      "maxRoofHeightM": 31.3,
+      "bpdaObjectId": 762749,
+      "bpdaPartCount": 11,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762749; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29626310",
+      "name": "way/29626310",
+      "referenceHeightM": 9.4,
+      "maxRoofHeightM": 9.4,
+      "bpdaObjectId": 690540,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690540; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659678",
+      "name": "way/29659678",
+      "referenceHeightM": 8.6,
+      "maxRoofHeightM": 9,
+      "bpdaObjectId": 690495,
+      "bpdaPartCount": 5,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690495; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659680",
+      "name": "St. Christopher Catholic Church",
+      "referenceHeightM": 4.8,
+      "maxRoofHeightM": 4.8,
+      "bpdaObjectId": 684111,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 684111; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659682",
+      "name": "way/29659682",
+      "referenceHeightM": 19.3,
+      "maxRoofHeightM": 19.3,
+      "bpdaObjectId": 683965,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 683965; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659683",
+      "name": "way/29659683",
+      "referenceHeightM": 8.3,
+      "maxRoofHeightM": 10.4,
+      "bpdaObjectId": 690375,
+      "bpdaPartCount": 10,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690375; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659684",
+      "name": "way/29659684",
+      "referenceHeightM": 7.1,
+      "maxRoofHeightM": 8.2,
+      "bpdaObjectId": 690323,
+      "bpdaPartCount": 4,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690323; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659686",
+      "name": "way/29659686",
+      "referenceHeightM": 18.9,
+      "maxRoofHeightM": 21.1,
+      "bpdaObjectId": 690121,
+      "bpdaPartCount": 3,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690121; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659703",
+      "name": "way/29659703",
+      "referenceHeightM": 3.6,
+      "maxRoofHeightM": 3.6,
+      "bpdaObjectId": 679898,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679898; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659706",
+      "name": "way/29659706",
+      "referenceHeightM": 7.2,
+      "maxRoofHeightM": 7.2,
+      "bpdaObjectId": 679675,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679675; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29659713",
+      "name": "way/29659713",
+      "referenceHeightM": 8.3,
+      "maxRoofHeightM": 8.3,
+      "bpdaObjectId": 739077,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739077; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722589",
+      "name": "way/29722589",
+      "referenceHeightM": 5.9,
+      "maxRoofHeightM": 8.8,
+      "bpdaObjectId": 690522,
+      "bpdaPartCount": 3,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690522; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722592",
+      "name": "way/29722592",
+      "referenceHeightM": 7.6,
+      "maxRoofHeightM": 9.6,
+      "bpdaObjectId": 690462,
+      "bpdaPartCount": 5,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690462; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722597",
+      "name": "way/29722597",
+      "referenceHeightM": 6.2,
+      "maxRoofHeightM": 6.2,
+      "bpdaObjectId": 690546,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690546; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722602",
+      "name": "way/29722602",
+      "referenceHeightM": 8.3,
+      "maxRoofHeightM": 9.6,
+      "bpdaObjectId": 690416,
+      "bpdaPartCount": 6,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690416; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722604",
+      "name": "way/29722604",
+      "referenceHeightM": 10.6,
+      "maxRoofHeightM": 10.6,
+      "bpdaObjectId": 688759,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 688759; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722606",
+      "name": "way/29722606",
+      "referenceHeightM": 8.2,
+      "maxRoofHeightM": 10.1,
+      "bpdaObjectId": 690295,
+      "bpdaPartCount": 4,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690295; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722619",
+      "name": "way/29722619",
+      "referenceHeightM": 3.2,
+      "maxRoofHeightM": 3.2,
+      "bpdaObjectId": 680028,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 680028; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722623",
+      "name": "way/29722623",
+      "referenceHeightM": 4.8,
+      "maxRoofHeightM": 4.8,
+      "bpdaObjectId": 679702,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679702; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29722632",
+      "name": "way/29722632",
+      "referenceHeightM": 4.4,
+      "maxRoofHeightM": 4.4,
+      "bpdaObjectId": 738983,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 738983; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29761802",
+      "name": "way/29761802",
+      "referenceHeightM": 8.5,
+      "maxRoofHeightM": 10.8,
+      "bpdaObjectId": 690478,
+      "bpdaPartCount": 3,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690478; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29761807",
+      "name": "way/29761807",
+      "referenceHeightM": 9.5,
+      "maxRoofHeightM": 10.4,
+      "bpdaObjectId": 690347,
+      "bpdaPartCount": 6,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690347; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29761810",
+      "name": "John W. McCormack Middle School",
+      "referenceHeightM": 8,
+      "maxRoofHeightM": 9,
+      "bpdaObjectId": 762759,
+      "bpdaPartCount": 7,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762759; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29761825",
+      "name": "way/29761825",
+      "referenceHeightM": 11.6,
+      "maxRoofHeightM": 11.6,
+      "bpdaObjectId": 683527,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 683527; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29761842",
+      "name": "McCormack Hall",
+      "referenceHeightM": 26.3,
+      "maxRoofHeightM": 32.8,
+      "bpdaObjectId": 762585,
+      "bpdaPartCount": 9,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762585; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29761873",
+      "name": "way/29761873",
+      "referenceHeightM": 7.5,
+      "maxRoofHeightM": 7.5,
+      "bpdaObjectId": 679108,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679108; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29761878",
+      "name": "way/29761878",
+      "referenceHeightM": 9.7,
+      "maxRoofHeightM": 9.7,
+      "bpdaObjectId": 739008,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739008; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833168",
+      "name": "way/29833168",
+      "referenceHeightM": 9.4,
+      "maxRoofHeightM": 10.8,
+      "bpdaObjectId": 690422,
+      "bpdaPartCount": 8,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690422; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833169",
+      "name": "way/29833169",
+      "referenceHeightM": 6,
+      "maxRoofHeightM": 6,
+      "bpdaObjectId": 684040,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 684040; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833170",
+      "name": "way/29833170",
+      "referenceHeightM": 18,
+      "maxRoofHeightM": 18,
+      "bpdaObjectId": 684017,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 684017; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833171",
+      "name": "way/29833171",
+      "referenceHeightM": 8.3,
+      "maxRoofHeightM": 10.4,
+      "bpdaObjectId": 690356,
+      "bpdaPartCount": 6,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690356; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833185",
+      "name": "way/29833185",
+      "referenceHeightM": 4.1,
+      "maxRoofHeightM": 4.1,
+      "bpdaObjectId": 688516,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 688516; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833187",
+      "name": "way/29833187",
+      "referenceHeightM": 3.8,
+      "maxRoofHeightM": 3.8,
+      "bpdaObjectId": 679294,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679294; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833189",
+      "name": "way/29833189",
+      "referenceHeightM": 4.2,
+      "maxRoofHeightM": 4.2,
+      "bpdaObjectId": 739321,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739321; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29833191",
+      "name": "way/29833191",
+      "referenceHeightM": 7.5,
+      "maxRoofHeightM": 7.5,
+      "bpdaObjectId": 739127,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739127; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847655",
+      "name": "way/29847655",
+      "referenceHeightM": 7,
+      "maxRoofHeightM": 7,
+      "bpdaObjectId": 682699,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 682699; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847658",
+      "name": "Clark Athletic Center",
+      "referenceHeightM": 11.5,
+      "maxRoofHeightM": 11.5,
+      "bpdaObjectId": 762060,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762060; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847669",
+      "name": "way/29847669",
+      "referenceHeightM": 3.6,
+      "maxRoofHeightM": 3.6,
+      "bpdaObjectId": 679734,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679734; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847673",
+      "name": "way/29847673",
+      "referenceHeightM": 4.7,
+      "maxRoofHeightM": 4.7,
+      "bpdaObjectId": 679327,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679327; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847675",
+      "name": "way/29847675",
+      "referenceHeightM": 4.1,
+      "maxRoofHeightM": 4.1,
+      "bpdaObjectId": 679214,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679214; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847676",
+      "name": "way/29847676",
+      "referenceHeightM": 6.3,
+      "maxRoofHeightM": 6.3,
+      "bpdaObjectId": 678965,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 678965; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847677",
+      "name": "way/29847677",
+      "referenceHeightM": 8.9,
+      "maxRoofHeightM": 8.9,
+      "bpdaObjectId": 739396,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739396; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847678",
+      "name": "way/29847678",
+      "referenceHeightM": 8.4,
+      "maxRoofHeightM": 8.4,
+      "bpdaObjectId": 739273,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739273; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847680",
+      "name": "way/29847680",
+      "referenceHeightM": 5,
+      "maxRoofHeightM": 5,
+      "bpdaObjectId": 739176,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 739176; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29847681",
+      "name": "way/29847681",
+      "referenceHeightM": 5,
+      "maxRoofHeightM": 5,
+      "bpdaObjectId": 738998,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 738998; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964251",
+      "name": "way/29964251",
+      "referenceHeightM": 3.8,
+      "maxRoofHeightM": 3.8,
+      "bpdaObjectId": 762122,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762122; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964252",
+      "name": "way/29964252",
+      "referenceHeightM": 7.4,
+      "maxRoofHeightM": 10.3,
+      "bpdaObjectId": 690502,
+      "bpdaPartCount": 5,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 690502; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964255",
+      "name": "way/29964255",
+      "referenceHeightM": 7,
+      "maxRoofHeightM": 7,
+      "bpdaObjectId": 683059,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 683059; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964257",
+      "name": "Healey Library",
+      "referenceHeightM": 43,
+      "maxRoofHeightM": 49.9,
+      "bpdaObjectId": 762564,
+      "bpdaPartCount": 7,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762564; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964260",
+      "name": "way/29964260",
+      "referenceHeightM": 8.5,
+      "maxRoofHeightM": 8.5,
+      "bpdaObjectId": 679983,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679983; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964263",
+      "name": "way/29964263",
+      "referenceHeightM": 8,
+      "maxRoofHeightM": 8,
+      "bpdaObjectId": 679175,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679175; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964264",
+      "name": "way/29964264",
+      "referenceHeightM": 4.3,
+      "maxRoofHeightM": 4.3,
+      "bpdaObjectId": 679023,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679023; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964265",
+      "name": "way/29964265",
+      "referenceHeightM": 9.7,
+      "maxRoofHeightM": 9.7,
+      "bpdaObjectId": 678989,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 678989; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/29964266",
+      "name": "way/29964266",
+      "referenceHeightM": 8.6,
+      "maxRoofHeightM": 8.6,
+      "bpdaObjectId": 741282,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 741282; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/212122544",
+      "name": "way/212122544",
+      "referenceHeightM": 3.5,
+      "maxRoofHeightM": 3.5,
+      "bpdaObjectId": 679863,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 679863; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/212122658",
+      "name": "way/212122658",
+      "referenceHeightM": 25.4,
+      "maxRoofHeightM": 25.4,
+      "bpdaObjectId": 688500,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 688500; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/212122671",
+      "name": "way/212122671",
+      "referenceHeightM": 3.2,
+      "maxRoofHeightM": 3.2,
+      "bpdaObjectId": 688495,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 688495; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/217512570",
+      "name": "John F. Kennedy Presidential Library and Museum",
+      "referenceHeightM": 10.5,
+      "maxRoofHeightM": 37.3,
+      "bpdaObjectId": 762622,
+      "bpdaPartCount": 8,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762622; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/620646468",
+      "name": "Campus Center",
+      "referenceHeightM": 12.3,
+      "maxRoofHeightM": 22.7,
+      "bpdaObjectId": 762584,
+      "bpdaPartCount": 7,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762584; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/623468277",
+      "name": "West Residence Hall",
+      "referenceHeightM": 28.8,
+      "osmLevels": 9,
+      "source": "OpenStreetMap building:levels=9 at 3.2m/level (https://www.openstreetmap.org/way/623468277)"
+    },
+    {
+      "osmId": "way/623468278",
+      "name": "East Residence Hall",
+      "referenceHeightM": 38.4,
+      "osmLevels": 12,
+      "source": "OpenStreetMap building:levels=12 at 3.2m/level (https://www.openstreetmap.org/way/623468278)"
+    },
+    {
+      "osmId": "way/623468280",
+      "name": "Service and Supply Building",
+      "referenceHeightM": 7.1,
+      "maxRoofHeightM": 7.1,
+      "bpdaObjectId": 762563,
+      "bpdaPartCount": 3,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762563; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/967040580",
+      "name": "way/967040580",
+      "referenceHeightM": 27.1,
+      "maxRoofHeightM": 49.9,
+      "bpdaObjectId": 762749,
+      "bpdaPartCount": 33,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762749; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/971648125",
+      "name": "Biology Department Greenhouse",
+      "referenceHeightM": 3.2,
+      "osmLevels": 1,
+      "source": "OpenStreetMap building:levels=1 at 3.2m/level (https://www.openstreetmap.org/way/971648125)"
+    },
+    {
+      "osmId": "way/972285216",
+      "name": "way/972285216",
+      "referenceHeightM": 7.1,
+      "maxRoofHeightM": 7.1,
+      "bpdaObjectId": 762567,
+      "bpdaPartCount": 1,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762567; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    },
+    {
+      "osmId": "way/972292456",
+      "name": "way/972292456",
+      "referenceHeightM": 3.2,
+      "osmLevels": 1,
+      "source": "OpenStreetMap building:levels=1 at 3.2m/level (https://www.openstreetmap.org/way/972292456)"
+    },
+    {
+      "osmId": "relation/13625203",
+      "name": "relation/13625203",
+      "referenceHeightM": 8.6,
+      "maxRoofHeightM": 13.3,
+      "bpdaObjectId": 762788,
+      "bpdaPartCount": 14,
+      "source": "City of Boston Planning Department (BPDA) Boston_Buildings FeatureServer Layer 9 (BLDG_HGT_2010 LiDAR, OBJECTID 762788; https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9)"
+    }
+  ]
+}
