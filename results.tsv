@@ -3,3 +3,9 @@ baseline	02c0328	84.53	0.00	100.00	78.33	99.88	98.20	73.31	45.51	baseline	Post-M
 exp-01	6f44ee3	88.86	+4.33	100.00	100.00	99.88	98.20	73.28	45.51	kept	Strict outdoor footway graph excluding building-crossing and covered edges
 exp-02	0281073	92.25	+3.39	100.00	100.00	99.88	96.45	73.28	69.85	kept	Calibrate building heights with City of Boston BPDA 2010 LiDAR + OSM levels
 exp-03	6b8ee9f	93.64	+1.39	100.00	100.00	99.88	96.85	86.59	69.85	kept	Dynamic-import ./schedule in main.ts to remove ical.js from initial JS bundle
+exp-04	136fc09	93.35	-0.29	100.00	100.00	99.88	96.85	86.46	68.00	reverted	OSM coastline landmass + daylight sky without architectural building textures (flat dark silhouettes lowered edge-SSIM)
+exp-05	136fc09	93.08	-0.56	100.00	100.00	99.88	96.85	85.61	66.77	reverted	Daylight coastal harbor + brick/glass facade textures + OSM parks/roads (high-contrast window textures lowered Sobel edge-SSIM)
+exp-06	136fc09	93.33	-0.31	100.00	100.00	99.88	96.85	85.63	68.41	reverted	Fixed sky-dome clipping + coastal harbor + brick/glass textures (west-2025 rose to 0.54, but bright sidewalk ribbons + bundle +1.7KB offset gain)
+exp-07	136fc09	93.66	+0.02	100.00	100.00	99.88	96.85	86.74	69.85	reverted	Named Three.js imports + function manualChunks (saved only 0.27 KB gzip; WebGLRenderer retains core Three.js)
+exp-08	136fc09	93.64	+0.00	100.00	100.00	99.88	96.85	84.76	71.08	reverted	Textured coastal harbor, parks, roads, roofs & Harborwalk trees (photoEdgeSsim jumped 24.62->27.69, west-2025 0.56, offset by +3.3KB bundle)
+exp-09	8408bae	94.34	+0.70	100.00	100.00	99.88	100.00	88.86	69.85	kept	Replace 38KB OrbitControls with custom touch/mouse CampusControls + fix all 3 Lighthouse mobile a11y audits (A11y 91->100, bundle -4.1KB)
