@@ -9,19 +9,23 @@ Load your class schedule (`.ics`, `.pdf`, or pasted text) or tap **Try demo sche
 ![Desktop FSD Chase View](docs/screenshots/desktop-1280x800.png)
 
 <p align="center">
-  <img src="docs/screenshots/mobile-390x844.png" alt="Mobile 390x844 FSD View" width="280" />
-  <img src="docs/screenshots/desktop-topdown-1280x800.png" alt="Desktop Top-Down View" width="540" />
+  <img src="docs/screenshots/mobile-390x844.png" alt="Mobile 390x844 FSD View" width="240" />
+  <img src="docs/screenshots/desktop-topdown-1280x800.png" alt="Desktop Top-Down View" width="380" />
+  <img src="docs/screenshots/desktop-catwalks-1280x800.png" alt="Desktop Catwalk X-Ray Mode" width="380" />
 </p>
 
-## Features (Milestone 1)
+## Features
 
-- **Dark FSD-Style 3D Campus:** Extruded building footprints from OpenStreetMap (with height / `building:levels` and building-specific fallbacks), luminous wireframe edges, dual-scale ground grid, subtle footway network, and clickable rooftop labels for all 8 major UMass Boston buildings.
+- **Dark FSD-Style 3D Campus + Dorchester Bay Coastline:** Extruded building footprints from OpenStreetMap enriched with **City of Boston (BPDA) LiDAR** heights, Dorchester Bay shoreline geometry, luminous wireframe edges, dual-scale ground grid, subtle footway network, and clickable rooftop labels for all 8 major UMass Boston buildings.
 - **100% Client-Side Schedule Parsing:**
-  - `.ics` calendar exports via `ical.js`
-  - `.pdf` schedule exports via `pdfjs-dist` (bundled local worker — no CDN calls)
+  - `.ics` calendar exports via `ical.js` (including multi-date non-RRULE weekday merging)
+  - `.pdf` schedule exports via `pdfjs-dist` (bundled local worker — no CDN calls), supporting both list/table exports and multi-column WISER weekly calendar-grid PDFs
   - Pasted plain text (e.g., WISER schedules or syllabus lines)
   - Bundled `demo-schedule.ics` with one-tap **Try demo schedule**
-- **A* Footway Routing & Animated Avatar:** Shortest walkable route over the static OSM footway graph from selectable start points (JFK/UMass Walkway on Mt. Vernon St, Campus Center Shuttle Drop-off, or West Garage) to the destination building's nearest walkway node, with a glowing electric-blue route tube, flowing light pulses, an articulated walking avatar, **Chase** and **Top-Down** camera modes, and play/pause/replay controls.
+- **Outdoor + Catwalk Routing, Live GPS & Class-to-Class Chaining:**
+  - Strict outdoor A* routing by default, plus an **Outdoor / Catwalks** toggle for UMB's sheltered skybridges/corridors with elevated teal route rendering and automatic X-ray transparency on traversed buildings.
+  - Selectable campus entrances, **My Location (GPS)** (100% on-device with campus-bounds validation), and **Class-to-Class chaining** (`Previous class (auto-chain)` + `Next class →` stepping).
+  - Animated low-poly walking avatar, **Chase** and **Top-Down** camera modes, and play/pause/replay controls.
 - **Phone-First Installable PWA:** Designed for `390x844` mobile viewports with `viewport-fit=cover`, `env(safe-area-inset-*)` padding, web app manifest, icons, and an offline-capable service worker, scaling cleanly to desktop screens.
 
 ## Privacy

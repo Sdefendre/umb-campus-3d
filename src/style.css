@@ -251,6 +251,13 @@ body,
   min-width: 0;
 }
 
+.route-dest-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .route-dest {
   font-size: 13.5px;
   font-weight: 600;
@@ -280,6 +287,20 @@ body,
 
 .route-stats .sep {
   color: var(--text-faint);
+}
+
+.catwalk-pill {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(56, 242, 216, 0.16);
+  border: 1px solid rgba(82, 255, 230, 0.42);
+  color: #6affea;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .route-actions {
@@ -408,6 +429,52 @@ body,
 
 .select-input:focus {
   border-color: var(--border-bright);
+}
+
+.gps-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: rgba(14, 24, 42, 0.85);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: border-color 0.16s, color 0.16s, background 0.16s;
+}
+
+.gps-btn:hover {
+  border-color: var(--border-bright);
+  color: var(--text);
+}
+
+.gps-btn.is-active {
+  border-color: rgba(82, 255, 230, 0.65);
+  background: rgba(16, 191, 168, 0.22);
+  color: #6affea;
+}
+
+.route-mode-row {
+  justify-content: space-between;
+}
+
+.segmented-sm {
+  padding: 2px;
+}
+
+.segmented-sm .seg-btn {
+  height: 24px;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
+.segmented-sm .seg-btn.is-catwalk.is-active {
+  background: rgba(16, 191, 168, 0.24);
+  color: #6affea;
+  box-shadow: inset 0 0 0 1px rgba(82, 255, 230, 0.45);
 }
 
 /* Intake buttons */

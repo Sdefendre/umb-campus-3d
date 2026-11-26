@@ -3,7 +3,15 @@ import { MAJOR_BUILDINGS, START_POINTS, matchOsmMajorBuilding } from './building
 import { LocalProjector, polygonCentroid } from './geo';
 import { CampusFootwayGraph } from './graph';
 import { CampusScene } from './scene';
-import type { BuildingRecord, CameraMode, CampusGeoJSON, ClassItem, Point2D } from './types';
+import type {
+  BuildingRecord,
+  CameraMode,
+  CampusGeoJSON,
+  ClassItem,
+  LonLat,
+  Point2D,
+  RouteMode,
+} from './types';
 
 let scheduleModPromise: Promise<typeof import('./schedule')> | null = null;
 function loadScheduleParser(): Promise<typeof import('./schedule')> {
@@ -24,6 +32,10 @@ const sheetToggleEl = document.getElementById('sheet-toggle')!;
 const collapseBtnEl = document.getElementById('btn-collapse-mobile')!;
 const statusLineEl = document.getElementById('status-line')!;
 const startSelectEl = document.getElementById('start-select') as HTMLSelectElement;
+const btnGpsEl = document.getElementById('btn-gps')!;
+const btnRouteOutdoorEl = document.getElementById('btn-route-outdoor')!;
+const btnRouteCatwalkEl = document.getElementById('btn-route-catwalk')!;
+const btnChainNextEl = document.getElementById('btn-chain-next')!;
 
 const intakeViewEl = document.getElementById('intake-view')!;
 const scheduleViewEl = document.getElementById('schedule-view')!;
@@ -51,11 +63,23 @@ const routeDestNameEl = document.getElementById('route-dest-name')!;
 const routeEtaEl = document.getElementById('route-eta')!;
 const routeDistEl = document.getElementById('route-dist')!;
 const routeOriginLabelEl = document.getElementById('route-origin-label')!;
+const routeCatwalkPillEl = document.getElementById('route-catwalk-pill')!;
 const routeProgressBarEl = document.getElementById('route-progress-bar')!;
 const btnPlayPauseEl = document.getElementById('btn-play-pause')!;
 const iconPauseEl = document.getElementById('icon-pause')!;
 const iconPlayEl = document.getElementById('icon-play')!;
 const btnReplayEl = document.getElementById('btn-replay')!;
+
+const GPS_START_ID = 'gps-live';
+const PREV_CLASS_START_ID = 'prev-class';
+
+// Campus bounding box + ~450m margin for on-campus GPS validation
+const CAMPUS_GPS_BOUNDS = {
+  south: 42.306,
+  north: 42.323,
+  west: -71.054,
+  east: -71.028,
+};
 
 // App state (in-memory only; never stored in localStorage or sent over network)
 let projector: LocalProjector | null = null;
@@ -65,6 +89,8 @@ let classes: ClassItem[] = [];
 let selectedClassId: string | null = null;
 let selectedBuildingId: string | null = null;
 let startPointId = START_POINTS[0].id;
+let routeMode: RouteMode = 'outdoor';
+let gpsLonLat: LonLat | null = null;
 
 const scene = new CampusScene(viewportEl, labelLayerEl, {
   onSelectBuilding(buildingId) {
@@ -81,15 +107,54 @@ const scene = new CampusScene(viewportEl, labelLayerEl, {
   },
 });
 
+function getMappedClasses(): ClassItem[] {
+  return classes.filter((c) => Boolean(c.buildingId));
+}
+
 function populateStartPoints(): void {
   startSelectEl.innerHTML = '';
+
+  const entrancesGroup = document.createElement('optgroup');
+  entrancesGroup.label = 'Campus Entrances';
   for (const sp of START_POINTS) {
     const opt = document.createElement('option');
     opt.value = sp.id;
     opt.textContent = sp.name;
-    startSelectEl.appendChild(opt);
+    entrancesGroup.appendChild(opt);
+  }
+  const gpsOpt = document.createElement('option');
+  gpsOpt.value = GPS_START_ID;
+  gpsOpt.textContent = gpsLonLat ? 'My Location (GPS active)' : 'My Location (GPS)';
+  entrancesGroup.appendChild(gpsOpt);
+  startSelectEl.appendChild(entrancesGroup);
+
+  const mapped = getMappedClasses();
+  if (mapped.length >= 2) {
+    const chainGroup = document.createElement('optgroup');
+    chainGroup.label = 'Class-to-Class';
+
+    const autoOpt = document.createElement('option');
+    autoOpt.value = PREV_CLASS_START_ID;
+    autoOpt.textContent = 'Previous class (auto-chain)';
+    chainGroup.appendChild(autoOpt);
+
+    for (const item of mapped) {
+      const opt = document.createElement('option');
+      opt.value = `class:${item.id}`;
+      const def = MAJOR_BUILDINGS.find((b) => b.id === item.buildingId);
+      opt.textContent = `${item.title.slice(0, 22)} (${def?.shortCode ?? item.buildingName})`;
+      chainGroup.appendChild(opt);
+    }
+    startSelectEl.appendChild(chainGroup);
+  }
+
+  const hasCurrent = [...startSelectEl.options].some((o) => o.value === startPointId);
+  if (!hasCurrent) {
+    startPointId = START_POINTS[0].id;
   }
   startSelectEl.value = startPointId;
+  btnGpsEl.classList.toggle('is-active', startPointId === GPS_START_ID && Boolean(gpsLonLat));
+  btnChainNextEl.classList.toggle('is-hidden', mapped.length < 2);
 }
 
 function showError(msg: string): void {
@@ -108,14 +173,114 @@ function setCameraMode(mode: CameraMode): void {
   scene.setCameraMode(mode);
 }
 
+function setRouteMode(mode: RouteMode): void {
+  routeMode = mode;
+  btnRouteOutdoorEl.classList.toggle('is-active', mode === 'outdoor');
+  btnRouteCatwalkEl.classList.toggle('is-active', mode === 'catwalk');
+  btnRouteCatwalkEl.classList.toggle('is-catwalk', mode === 'catwalk');
+  recomputeActiveRoute();
+}
+
+function resolveStartPoint(destBuildingId: string): { point: Point2D; shortLabel: string } | null {
+  if (!projector) return null;
+
+  if (startPointId === GPS_START_ID && gpsLonLat) {
+    return {
+      point: projector.project(gpsLonLat.lon, gpsLonLat.lat),
+      shortLabel: 'My GPS',
+    };
+  }
+
+  if (startPointId === PREV_CLASS_START_ID && selectedClassId) {
+    const mapped = getMappedClasses();
+    const curIdx = mapped.findIndex((c) => c.id === selectedClassId);
+    if (curIdx > 0) {
+      const prev = mapped[curIdx - 1];
+      const prevB = prev.buildingId ? majorBuildingsMap.get(prev.buildingId) : null;
+      if (prevB && prevB.id !== destBuildingId) {
+        return { point: prevB.centroid, shortLabel: prevB.shortCode || prevB.name };
+      }
+    }
+  }
+
+  if (startPointId.startsWith('class:')) {
+    const classId = startPointId.slice('class:'.length);
+    const item = classes.find((c) => c.id === classId);
+    const b = item?.buildingId ? majorBuildingsMap.get(item.buildingId) : null;
+    if (b) {
+      return { point: b.centroid, shortLabel: b.shortCode || b.name };
+    }
+  }
+
+  const sp = START_POINTS.find((s) => s.id === startPointId) ?? START_POINTS[0];
+  return {
+    point: projector.project(sp.lonLat.lon, sp.lonLat.lat),
+    shortLabel: sp.shortLabel,
+  };
+}
+
+function requestLiveGps(): void {
+  clearError();
+  if (!('geolocation' in navigator)) {
+    showError('GPS geolocation is not supported in this browser.');
+    startPointId = START_POINTS[0].id;
+    populateStartPoints();
+    return;
+  }
+
+  statusLineEl.textContent = 'Locating on-device via GPS…';
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { latitude, longitude } = pos.coords;
+      const onCampus =
+        latitude >= CAMPUS_GPS_BOUNDS.south &&
+        latitude <= CAMPUS_GPS_BOUNDS.north &&
+        longitude >= CAMPUS_GPS_BOUNDS.west &&
+        longitude <= CAMPUS_GPS_BOUNDS.east;
+
+      if (!onCampus) {
+        gpsLonLat = null;
+        scene.setUserLocation(null);
+        startPointId = START_POINTS[0].id;
+        populateStartPoints();
+        statusLineEl.textContent = '100% on-device · schedules never leave your device';
+        recomputeActiveRoute();
+        showError(
+          'Your GPS position is outside UMass Boston (Columbia Point). Using Campus Entrance instead.'
+        );
+        return;
+      }
+
+      gpsLonLat = { lon: longitude, lat: latitude };
+      startPointId = GPS_START_ID;
+      if (projector) {
+        scene.setUserLocation(projector.project(longitude, latitude));
+      }
+      populateStartPoints();
+      statusLineEl.textContent = 'Live GPS active · 100% on-device';
+      recomputeActiveRoute();
+    },
+    (err) => {
+      gpsLonLat = null;
+      scene.setUserLocation(null);
+      startPointId = START_POINTS[0].id;
+      populateStartPoints();
+      statusLineEl.textContent = '100% on-device · schedules never leave your device';
+      showError(`GPS unavailable (${err.message}). Using Campus Entrance instead.`);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
+
 function routeToBuilding(buildingId: string, customLabel?: string): void {
   if (!graph || !projector) return;
   const building = majorBuildingsMap.get(buildingId);
-  const sp = START_POINTS.find((s) => s.id === startPointId) ?? START_POINTS[0];
   if (!building) return;
 
-  const startPt = projector.project(sp.lonLat.lon, sp.lonLat.lat);
-  const res = graph.findRoute(startPt, building.centroid);
+  const origin = resolveStartPoint(buildingId);
+  if (!origin) return;
+
+  const res = graph.findRoute(origin.point, building.centroid, routeMode);
   if (!res) {
     showError(`Could not compute a footway route to ${building.name}.`);
     return;
@@ -129,8 +294,22 @@ function routeToBuilding(buildingId: string, customLabel?: string): void {
   routeDestNameEl.textContent = customLabel ?? building.name;
   routeEtaEl.textContent = `${walkMinutes} min walk`;
   routeDistEl.textContent = `${Math.round(res.distanceMeters)} m`;
-  routeOriginLabelEl.textContent = `from ${sp.shortLabel}`;
+  routeOriginLabelEl.textContent = `from ${origin.shortLabel}`;
+  routeCatwalkPillEl.classList.toggle('is-hidden', !res.usesCatwalks);
   routeHudEl.classList.remove('is-hidden');
+}
+
+function recomputeActiveRoute(): void {
+  if (selectedClassId) {
+    const item = classes.find((c) => c.id === selectedClassId);
+    if (item) {
+      selectClass(item);
+      return;
+    }
+  }
+  if (selectedBuildingId) {
+    routeToBuilding(selectedBuildingId);
+  }
 }
 
 function selectClass(item: ClassItem): void {
@@ -142,6 +321,22 @@ function selectClass(item: ClassItem): void {
     ? `${item.buildingName} · ${item.room}`
     : item.buildingName ?? item.title;
   routeToBuilding(item.buildingId, label);
+}
+
+function stepToNextClass(): void {
+  const mapped = getMappedClasses();
+  if (mapped.length < 2) return;
+  const curIdx = mapped.findIndex((c) => c.id === selectedClassId);
+  const nextIdx = curIdx >= 0 ? (curIdx + 1) % mapped.length : 0;
+
+  if (nextIdx > 0) {
+    startPointId = PREV_CLASS_START_ID;
+    populateStartPoints();
+  } else if (startPointId === PREV_CLASS_START_ID) {
+    startPointId = START_POINTS[0].id;
+    populateStartPoints();
+  }
+  selectClass(mapped[nextIdx]);
 }
 
 function renderClassList(): void {
@@ -208,6 +403,7 @@ function applyParsedClasses(parsed: ClassItem[], sourceLabel: string): void {
   classes = parsed;
   pasteBoxEl.classList.add('is-hidden');
   statusLineEl.textContent = `${sourceLabel} · parsed locally`;
+  populateStartPoints();
   renderClassList();
 
   const firstMatched = classes.find((c) => c.buildingId);
@@ -265,6 +461,7 @@ async function loadCampusData(): Promise<void> {
   projector = new LocalProjector(data.metadata.origin);
   const buildings: BuildingRecord[] = [];
   const paths: { points: Point2D[]; highway: string; covered?: boolean }[] = [];
+  const coastlines: Point2D[][] = [];
 
   for (const feat of data.features) {
     if (feat.properties.kind === 'building') {
@@ -303,11 +500,16 @@ async function loadCampusData(): Promise<void> {
           covered: feat.properties.covered,
         });
       }
+    } else if (feat.properties.kind === 'coastline' && feat.geometry.type === 'LineString') {
+      const pts = projector.projectRing(feat.geometry.coordinates);
+      if (pts.length >= 2) {
+        coastlines.push(pts);
+      }
     }
   }
 
   graph = new CampusFootwayGraph(paths, buildings);
-  scene.loadCampus(buildings, paths);
+  scene.loadCampus(buildings, paths, coastlines);
 
   const params = new URLSearchParams(window.location.search);
   if (params.get('evalView') === '1') {
@@ -374,18 +576,27 @@ btnClearEl.addEventListener('click', () => {
   clearError();
   scene.setRoute([], null);
   scene.frameOverview();
+  populateStartPoints();
   renderClassList();
 });
 
 startSelectEl.addEventListener('change', () => {
   startPointId = startSelectEl.value;
-  if (selectedClassId) {
-    const item = classes.find((c) => c.id === selectedClassId);
-    if (item) selectClass(item);
-  } else if (selectedBuildingId) {
-    routeToBuilding(selectedBuildingId);
+  if (startPointId === GPS_START_ID) {
+    if (!gpsLonLat) {
+      requestLiveGps();
+      return;
+    }
+  } else {
+    btnGpsEl.classList.remove('is-active');
   }
+  recomputeActiveRoute();
 });
+
+btnGpsEl.addEventListener('click', () => requestLiveGps());
+btnRouteOutdoorEl.addEventListener('click', () => setRouteMode('outdoor'));
+btnRouteCatwalkEl.addEventListener('click', () => setRouteMode('catwalk'));
+btnChainNextEl.addEventListener('click', () => stepToNextClass());
 
 btnCamChaseEl.addEventListener('click', () => setCameraMode('chase'));
 btnCamTopEl.addEventListener('click', () => setCameraMode('topdown'));

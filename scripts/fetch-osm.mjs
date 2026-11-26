@@ -204,6 +204,37 @@ function stitchRings(segments) {
   return rings;
 }
 
+function stitchPolylines(segments) {
+  const remaining = segments.filter((s) => s.length >= 2).map((s) => [...s]);
+  const chains = [];
+  while (remaining.length > 0) {
+    let chain = remaining.shift();
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const head = chain[0];
+      const tail = chain[chain.length - 1];
+      for (let i = 0; i < remaining.length; i++) {
+        const seg = remaining[i];
+        if (seg[0] === tail) {
+          chain = chain.concat(seg.slice(1));
+          remaining.splice(i, 1);
+          changed = true;
+          break;
+        }
+        if (seg[seg.length - 1] === head) {
+          chain = seg.slice(0, -1).concat(chain);
+          remaining.splice(i, 1);
+          changed = true;
+          break;
+        }
+      }
+    }
+    chains.push(chain);
+  }
+  return chains;
+}
+
 function nodesToCoords(nodeIds, nodeMap) {
   const coords = [];
   for (const id of nodeIds) {
@@ -318,9 +349,28 @@ async function main() {
     if (!coords || coords.length < 2) continue;
     const props = { kind: 'path', osmId: `way/${way.id}`, highway: tags.highway };
     if (tags.name) props.name = tags.name;
-    if (tags.indoor === 'yes' || tags.covered === 'yes') props.covered = true;
+    if (tags.indoor === 'yes' || tags.covered === 'yes' || tags.highway === 'corridor') {
+      props.covered = true;
+    }
     features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: coords } });
   }
+
+  // Dorchester Bay / Columbia Point coastline (stitched OSM natural=coastline ways)
+  const coastSegs = [];
+  for (const way of wayMap.values()) {
+    if (way.tags?.natural === 'coastline' && Array.isArray(way.nodes) && way.nodes.length >= 2) {
+      coastSegs.push(way.nodes);
+    }
+  }
+  stitchPolylines(coastSegs).forEach((chain, idx) => {
+    const coords = nodesToCoords(chain, nodeMap);
+    if (!coords || coords.length < 2) return;
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'coastline', osmId: `coastline/${idx}` },
+      geometry: { type: 'LineString', coordinates: coords },
+    });
+  });
 
   const geojson = {
     type: 'FeatureCollection',
@@ -339,7 +389,10 @@ async function main() {
   await fs.writeFile(OUT_PATH, json, 'utf8');
   const bCount = features.filter((f) => f.properties.kind === 'building').length;
   const pCount = features.filter((f) => f.properties.kind === 'path').length;
-  console.log(`Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${pCount} paths.`);
+  const cCount = features.filter((f) => f.properties.kind === 'coastline').length;
+  console.log(
+    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${pCount} paths, ${cCount} coastline chains.`
+  );
 }
 
 main().catch((err) => {

@@ -61,7 +61,10 @@
       <div id="route-hud" class="route-hud is-hidden" aria-live="polite">
         <div class="route-hud-row">
           <div class="route-meta">
-            <div class="route-dest" id="route-dest-name">—</div>
+            <div class="route-dest-row">
+              <div class="route-dest" id="route-dest-name">—</div>
+              <span id="route-catwalk-pill" class="catwalk-pill is-hidden">catwalks</span>
+            </div>
             <div class="route-stats">
               <span id="route-eta">— min</span>
               <span class="sep">·</span>
@@ -110,10 +113,43 @@
         </div>
 
         <div class="panel-body">
-          <!-- Start point selector -->
+          <!-- Start point selector + GPS + Route mode -->
           <div class="field-row">
-            <label for="start-select" class="field-label">Start from</label>
+            <label for="start-select" class="field-label">Start</label>
             <select id="start-select" class="select-input"></select>
+            <button
+              id="btn-gps"
+              type="button"
+              class="gps-btn"
+              title="Use my GPS location (on-device)"
+              aria-label="Use my GPS location"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                <circle cx="12" cy="12" r="7" stroke-opacity="0.45" />
+              </svg>
+            </button>
+          </div>
+
+          <div class="field-row route-mode-row">
+            <span class="field-label">Route</span>
+            <div class="segmented segmented-sm" role="group" aria-label="Walkway preference">
+              <button id="btn-route-outdoor" type="button" class="seg-btn is-active">
+                Outdoor
+              </button>
+              <button id="btn-route-catwalk" type="button" class="seg-btn">
+                Catwalks
+              </button>
+            </div>
+            <button
+              id="btn-chain-next"
+              type="button"
+              class="chip-btn is-hidden"
+              title="Walk from current class to next class"
+            >
+              Next class →
+            </button>
           </div>
 
           <!-- Empty / intake state -->

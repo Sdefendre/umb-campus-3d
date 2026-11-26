@@ -34,4 +34,39 @@ describe('CampusFootwayGraph', () => {
     expect(route).not.toBeNull();
     expect(route!.distanceMeters).toBeCloseTo(25, 5);
   });
+
+  it('prefers outdoor detour in outdoor mode and sheltered catwalk shortcut in catwalk mode', () => {
+    const graph = new CampusFootwayGraph([
+      // Direct covered catwalk shortcut (100m)
+      {
+        highway: 'corridor',
+        covered: true,
+        points: [
+          { x: 0, z: 0 },
+          { x: 100, z: 0 },
+        ],
+      },
+      // Longer outdoor walkway around building (180m)
+      {
+        highway: 'footway',
+        points: [
+          { x: 0, z: 0 },
+          { x: 0, z: 40 },
+          { x: 100, z: 40 },
+          { x: 100, z: 0 },
+        ],
+      },
+    ]);
+
+    const outdoor = graph.findRoute({ x: 0, z: 0 }, { x: 100, z: 0 }, 'outdoor');
+    expect(outdoor).not.toBeNull();
+    expect(outdoor!.distanceMeters).toBeCloseTo(180, 3);
+    expect(outdoor!.usesCatwalks).toBe(false);
+
+    const catwalk = graph.findRoute({ x: 0, z: 0 }, { x: 100, z: 0 }, 'catwalk');
+    expect(catwalk).not.toBeNull();
+    expect(catwalk!.distanceMeters).toBeCloseTo(100, 3);
+    expect(catwalk!.usesCatwalks).toBe(true);
+    expect(catwalk!.points.some((p) => p.indoor)).toBe(true);
+  });
 });

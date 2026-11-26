@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseIcsSchedule, parsePdfSchedule, parseTextSchedule } from '../schedule';
+import {
+  parseIcsSchedule,
+  parsePdfPages,
+  parsePdfSchedule,
+  parseTextSchedule,
+  type PdfTextItem,
+} from '../schedule';
 
 const mockDestroy = vi.fn().mockResolvedValue(undefined);
 const mockGetDocument = vi.fn();
@@ -172,5 +178,53 @@ describe('parsePdfSchedule', () => {
 
     await expect(parsePdfSchedule(fakeFile)).rejects.toThrow('corrupt page');
     expect(mockDestroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('parses multi-column WISER weekly calendar-grid PDFs and merges Mon/Wed/Fri + Tue/Thu', () => {
+    const gridPage: PdfTextItem[] = [
+      // Weekday header row across X columns
+      { str: 'Monday', x: 100, y: 700, width: 40 },
+      { str: 'Tuesday', x: 200, y: 700, width: 42 },
+      { str: 'Wednesday', x: 300, y: 700, width: 52 },
+      { str: 'Thursday', x: 400, y: 700, width: 44 },
+      { str: 'Friday', x: 500, y: 700, width: 32 },
+      // Time axis on far left (should be ignored)
+      { str: '10:00 AM', x: 20, y: 650, width: 38 },
+      { str: '1:00 PM', x: 20, y: 560, width: 36 },
+      // Monday: CS 240 in McCormack
+      { str: 'CS 240 - 01', x: 96, y: 652 },
+      { str: '10:00 AM - 10:50 AM', x: 96, y: 640 },
+      { str: 'M-01-0408', x: 96, y: 628 },
+      // Wednesday: same CS 240
+      { str: 'CS 240 - 01', x: 296, y: 652 },
+      { str: '10:00 AM - 10:50 AM', x: 296, y: 640 },
+      { str: 'M-01-0408', x: 296, y: 628 },
+      // Friday: same CS 240
+      { str: 'CS 240 - 01', x: 496, y: 652 },
+      { str: '10:00 AM - 10:50 AM', x: 496, y: 640 },
+      { str: 'M-01-0408', x: 496, y: 628 },
+      // Tuesday & Thursday: BIOL 112 in ISC
+      { str: 'BIOL 112', x: 196, y: 570 },
+      { str: '1:00 PM - 2:15 PM', x: 196, y: 558 },
+      { str: 'ISC 2-2003', x: 196, y: 546 },
+      { str: 'BIOL 112', x: 396, y: 570 },
+      { str: '1:00 PM - 2:15 PM', x: 396, y: 558 },
+      { str: 'ISC 2-2003', x: 396, y: 546 },
+    ];
+
+    const items = parsePdfPages([gridPage]);
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      title: 'CS 240 - 01',
+      daysLabel: 'Mon/Wed/Fri',
+      buildingId: 'mccormack',
+      room: '01-0408',
+    });
+    expect(items[1]).toMatchObject({
+      title: 'BIOL 112',
+      daysLabel: 'Tue/Thu',
+      buildingId: 'isc',
+      room: '2-2003',
+    });
   });
 });

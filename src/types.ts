@@ -8,6 +8,12 @@ export interface Point2D {
   z: number;
 }
 
+export interface RoutePoint extends Point2D {
+  indoor?: boolean;
+}
+
+export type RouteMode = 'outdoor' | 'catwalk';
+
 export interface CampusGeoJSON {
   type: 'FeatureCollection';
   metadata: {
@@ -37,6 +43,11 @@ export interface PathProperties {
   covered?: boolean;
 }
 
+export interface CoastlineProperties {
+  kind: 'coastline';
+  osmId: string;
+}
+
 export type CampusFeature =
   | {
       type: 'Feature';
@@ -48,6 +59,11 @@ export type CampusFeature =
   | {
       type: 'Feature';
       properties: PathProperties;
+      geometry: { type: 'LineString'; coordinates: number[][] };
+    }
+  | {
+      type: 'Feature';
+      properties: CoastlineProperties;
       geometry: { type: 'LineString'; coordinates: number[][] };
     };
 
@@ -82,11 +98,12 @@ export interface ClassItem {
 }
 
 export interface RouteResult {
-  points: Point2D[];
+  points: RoutePoint[];
   distanceMeters: number;
   walkMinutes: number;
   startLabel: string;
   destinationName: string;
+  usesCatwalks: boolean;
 }
 
 export type CameraMode = 'chase' | 'topdown';

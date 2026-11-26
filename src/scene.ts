@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CampusControls } from './controls';
-import { dist2D } from './geo';
-import type { BuildingRecord, CameraMode, Point2D } from './types';
+import { dist2D, pointInBuildingPolygons } from './geo';
+import type { BuildingRecord, CameraMode, Point2D, RoutePoint } from './types';
 
 interface BuildingVisual {
   record: BuildingRecord;
@@ -14,6 +14,7 @@ interface BuildingVisual {
 
 interface RouteSample {
   point: Point2D;
+  y: number;
   heading: number;
   cumDist: number;
 }
@@ -46,6 +47,9 @@ export class CampusScene {
   };
   private readonly destBeacon = new THREE.Group();
   private destBeaconRings: THREE.Mesh[] = [];
+  private readonly userMarker = new THREE.Group();
+  private userMarkerPulse: THREE.Mesh | null = null;
+  private xrayBuildingIds = new Set<string>();
 
   private routeSamples: RouteSample[] = [];
   private routeTotalDist = 0;
@@ -109,6 +113,9 @@ export class CampusScene {
 
     this.setupDestinationBeacon();
     this.scene.add(this.destBeacon);
+
+    this.setupUserMarker();
+    this.scene.add(this.userMarker);
 
     window.addEventListener('resize', this.handleResize);
     this.lastTime = performance.now();
@@ -281,10 +288,113 @@ export class CampusScene {
     this.destBeacon.add(beam);
   }
 
+  private setupUserMarker(): void {
+    this.userMarker.visible = false;
+    const dot = new THREE.Mesh(
+      new THREE.CircleGeometry(2.2, 24),
+      new THREE.MeshBasicMaterial({
+        color: 0x38f2d8,
+        side: THREE.DoubleSide,
+      })
+    );
+    dot.rotation.x = -Math.PI / 2;
+    dot.position.y = 0.28;
+    this.userMarker.add(dot);
+
+    const pulse = new THREE.Mesh(
+      new THREE.RingGeometry(2.6, 3.8, 32),
+      new THREE.MeshBasicMaterial({
+        color: 0x38f2d8,
+        transparent: true,
+        opacity: 0.75,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      })
+    );
+    pulse.rotation.x = -Math.PI / 2;
+    pulse.position.y = 0.26;
+    this.userMarker.add(pulse);
+    this.userMarkerPulse = pulse;
+  }
+
+  setUserLocation(pt: Point2D | null): void {
+    if (!pt) {
+      this.userMarker.visible = false;
+      return;
+    }
+    this.userMarker.position.set(pt.x, 0, pt.z);
+    this.userMarker.visible = true;
+  }
+
   /**
-   * Populates the 3D scene with extruded OSM buildings and walkable footway network lines.
+   * Populates the 3D scene with extruded OSM buildings, footways, and Dorchester Bay coastline.
    */
-  loadCampus(buildings: BuildingRecord[], paths: { points: Point2D[]; highway: string }[]): void {
+  loadCampus(
+    buildings: BuildingRecord[],
+    paths: { points: Point2D[]; highway: string }[],
+    coastlines: Point2D[][] = []
+  ): void {
+    // 0. Render Dorchester Bay / Columbia Point shoreline
+    if (coastlines.length > 0) {
+      const coastCorePts: number[] = [];
+      for (const chain of coastlines) {
+        if (chain.length < 2) continue;
+        for (let i = 1; i < chain.length; i++) {
+          const a = chain[i - 1];
+          const b = chain[i];
+          coastCorePts.push(a.x, 0.14, a.z, b.x, 0.14, b.z);
+        }
+        const vecs = chain.map((p) => new THREE.Vector3(p.x, 0.12, p.z));
+        if (vecs.length >= 2) {
+          const coastCurve = new THREE.CatmullRomCurve3(vecs, false, 'centripetal', 0.2);
+          const segs = Math.min(320, Math.max(24, vecs.length * 2));
+          const ribbon = new THREE.Mesh(
+            new THREE.TubeGeometry(coastCurve, segs, 3.2, 4, false),
+            new THREE.MeshBasicMaterial({
+              color: 0x0d5c8a,
+              transparent: true,
+              opacity: 0.26,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false,
+            })
+          );
+          ribbon.scale.y = 0.08;
+          this.scene.add(ribbon);
+        }
+      }
+      if (coastCorePts.length > 0) {
+        const coastGeo = new THREE.BufferGeometry();
+        coastGeo.setAttribute('position', new THREE.Float32BufferAttribute(coastCorePts, 3));
+        this.scene.add(
+          new THREE.LineSegments(
+            coastGeo,
+            new THREE.LineBasicMaterial({
+              color: 0x32a8d9,
+              transparent: true,
+              opacity: 0.78,
+            })
+          )
+        );
+      }
+
+      const bayMat = new THREE.MeshBasicMaterial({
+        color: 0x051428,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+      });
+      const bayNorthEast = new THREE.Mesh(new THREE.PlaneGeometry(1800, 2400), bayMat);
+      bayNorthEast.rotation.x = -Math.PI / 2;
+      bayNorthEast.position.set(1180, -0.02, -40);
+      this.scene.add(bayNorthEast);
+
+      const bayNorth = new THREE.Mesh(new THREE.PlaneGeometry(2400, 1200), bayMat);
+      bayNorth.rotation.x = -Math.PI / 2;
+      bayNorth.position.set(160, -0.02, -960);
+      this.scene.add(bayNorth);
+    }
+
     // 1. Render subtle OSM footway network on ground (FSD lane-line aesthetic)
     const footPositions: number[] = [];
     const roadPositions: number[] = [];
@@ -441,9 +551,10 @@ export class CampusScene {
   }
 
   /**
-   * Draws a glowing FSD blue route tube + pulse markers and starts the walking avatar.
+   * Draws a glowing FSD blue route tube (elevating sheltered indoor catwalks to 2nd-floor
+   * height with X-ray building transparency) and starts the walking avatar.
    */
-  setRoute(points: Point2D[], destinationBuildingId: string | null): void {
+  setRoute(points: RoutePoint[], destinationBuildingId: string | null): void {
     // Clear existing route geometry
     while (this.routeGroup.children.length > 0) {
       const child = this.routeGroup.children.pop()!;
@@ -455,7 +566,19 @@ export class CampusScene {
     }
     this.pulseNodes.length = 0;
 
-    // Update destination building highlight
+    // Identify buildings traversed by indoor/catwalk segments for X-ray visibility
+    const traversedBuildings = new Set<string>();
+    for (const pt of points) {
+      if (!pt.indoor) continue;
+      for (const [id, vis] of this.buildings) {
+        if (pointInBuildingPolygons(pt, vis.record.polygons)) {
+          traversedBuildings.add(id);
+        }
+      }
+    }
+    this.xrayBuildingIds = traversedBuildings;
+
+    // Update destination building highlight & X-ray transparency
     this.setActiveBuilding(destinationBuildingId);
 
     if (points.length < 2) {
@@ -469,7 +592,7 @@ export class CampusScene {
     }
 
     // Deduplicate near-identical consecutive points for smooth Catmull-Rom curve
-    const cleanPts: Point2D[] = [points[0]];
+    const cleanPts: RoutePoint[] = [points[0]];
     for (let i = 1; i < points.length; i++) {
       if (dist2D(cleanPts[cleanPts.length - 1], points[i]) > 0.6) {
         cleanPts.push(points[i]);
@@ -477,26 +600,29 @@ export class CampusScene {
     }
     if (cleanPts.length < 2) cleanPts.push(points[points.length - 1]);
 
-    const vec3Pts = cleanPts.map((p) => new THREE.Vector3(p.x, 0.52, p.z));
+    const hasIndoor = cleanPts.some((p) => p.indoor);
+    const vec3Pts = cleanPts.map((p) => new THREE.Vector3(p.x, p.indoor ? 4.4 : 0.52, p.z));
     const curve = new THREE.CatmullRomCurve3(vec3Pts, false, 'centripetal', 0.25);
     this.routeCurve = curve;
 
     const tubularSegments = Math.min(480, Math.max(48, cleanPts.length * 6));
+    const coreColor = hasIndoor ? 0x52ffe6 : 0x70e4ff;
+    const glowColor = hasIndoor ? 0x10bfa8 : 0x1a8cff;
 
-    // 1. Bright cyan-blue FSD core tube
+    // 1. Bright core tube (cyan-blue outdoor / luminous teal when traversing catwalks)
     const coreMesh = new THREE.Mesh(
       new THREE.TubeGeometry(curve, tubularSegments, 0.55, 8, false),
-      new THREE.MeshBasicMaterial({ color: 0x70e4ff })
+      new THREE.MeshBasicMaterial({ color: coreColor })
     );
     this.routeGroup.add(coreMesh);
 
-    // 2. Outer electric-blue additive glow sheath
+    // 2. Outer additive glow sheath
     const glowMesh = new THREE.Mesh(
       new THREE.TubeGeometry(curve, tubularSegments, 1.45, 8, false),
       new THREE.MeshBasicMaterial({
-        color: 0x1a8cff,
+        color: glowColor,
         transparent: true,
-        opacity: 0.32,
+        opacity: 0.34,
         blending: THREE.AdditiveBlending,
         depthWrite: false,
       })
@@ -504,10 +630,12 @@ export class CampusScene {
     this.routeGroup.add(glowMesh);
 
     // 3. Soft ground reflection ribbon under route
+    const groundVecs = cleanPts.map((p) => new THREE.Vector3(p.x, 0.14, p.z));
+    const groundCurve = new THREE.CatmullRomCurve3(groundVecs, false, 'centripetal', 0.25);
     const washMesh = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, tubularSegments, 2.7, 6, false),
+      new THREE.TubeGeometry(groundCurve, tubularSegments, 2.7, 6, false),
       new THREE.MeshBasicMaterial({
-        color: 0x0f6eff,
+        color: glowColor,
         transparent: true,
         opacity: 0.16,
         blending: THREE.AdditiveBlending,
@@ -515,14 +643,13 @@ export class CampusScene {
       })
     );
     washMesh.scale.y = 0.06;
-    washMesh.position.y = 0.12;
     this.routeGroup.add(washMesh);
 
     // 4. Start point beacon
     const startDisc = new THREE.Mesh(
       new THREE.RingGeometry(1.8, 3.0, 28),
       new THREE.MeshBasicMaterial({
-        color: 0x56d8ff,
+        color: coreColor,
         transparent: true,
         opacity: 0.85,
         side: THREE.DoubleSide,
@@ -531,7 +658,7 @@ export class CampusScene {
       })
     );
     startDisc.rotation.x = -Math.PI / 2;
-    startDisc.position.set(cleanPts[0].x, 0.2, cleanPts[0].z);
+    startDisc.position.set(cleanPts[0].x, cleanPts[0].indoor ? 4.2 : 0.2, cleanPts[0].z);
     this.routeGroup.add(startDisc);
 
     // 5. Flowing light pulses along the route
@@ -540,7 +667,7 @@ export class CampusScene {
       const pulse = new THREE.Mesh(
         new THREE.SphereGeometry(0.95, 10, 10),
         new THREE.MeshBasicMaterial({
-          color: 0xc2f5ff,
+          color: hasIndoor ? 0xc8fff6 : 0xc2f5ff,
           transparent: true,
           opacity: 0.9,
           blending: THREE.AdditiveBlending,
@@ -564,7 +691,7 @@ export class CampusScene {
       const next = sampledVecs[Math.min(i + 1, sampledVecs.length - 1)];
       const prev = sampledVecs[Math.max(i - 1, 0)];
       const heading = Math.atan2(next.x - prev.x, next.z - prev.z);
-      samples.push({ point: { x: cur.x, z: cur.z }, heading, cumDist });
+      samples.push({ point: { x: cur.x, z: cur.z }, y: Math.max(0, cur.y - 0.52), heading, cumDist });
     }
 
     this.routeSamples = samples;
@@ -593,16 +720,22 @@ export class CampusScene {
   private setActiveBuilding(buildingId: string | null): void {
     this.activeBuildingId = buildingId;
     for (const [id, vis] of this.buildings) {
-      if (!vis.record.isMajor) continue;
-      const active = id === buildingId;
-      vis.material.color.setHex(active ? 0x1c4678 : 0x1a2d4c);
-      vis.material.emissive.setHex(active ? 0x1050a3 : 0x0c1f3d);
-      vis.material.emissiveIntensity = active ? 1.05 : 0.72;
-      vis.edgeMaterial.color.setHex(active ? 0x76ecff : 0x5cc0ff);
-      vis.edgeMaterial.opacity = active ? 1.0 : 0.85;
-      if (vis.labelEl) {
-        vis.labelEl.classList.toggle('is-active', active);
+      const isXray = this.xrayBuildingIds.has(id);
+      if (vis.record.isMajor) {
+        const active = id === buildingId;
+        vis.material.color.setHex(active ? 0x1c4678 : 0x1a2d4c);
+        vis.material.emissive.setHex(active ? 0x1050a3 : 0x0c1f3d);
+        vis.material.emissiveIntensity = active ? 1.05 : 0.72;
+        vis.edgeMaterial.color.setHex(active ? 0x76ecff : isXray ? 0x52ffe6 : 0x5cc0ff);
+        vis.edgeMaterial.opacity = active || isXray ? 1.0 : 0.85;
+        if (vis.labelEl) {
+          vis.labelEl.classList.toggle('is-active', active);
+        }
       }
+      vis.material.transparent = isXray;
+      vis.material.opacity = isXray ? 0.3 : 1.0;
+      vis.material.depthWrite = !isXray;
+      vis.material.needsUpdate = true;
     }
   }
 
@@ -656,7 +789,7 @@ export class CampusScene {
   private getSampleAt(dist: number): RouteSample {
     const samples = this.routeSamples;
     if (samples.length === 0) {
-      return { point: { x: 0, z: 0 }, heading: 0, cumDist: 0 };
+      return { point: { x: 0, z: 0 }, y: 0, heading: 0, cumDist: 0 };
     }
     if (dist <= 0) return samples[0];
     if (dist >= this.routeTotalDist) return samples[samples.length - 1];
@@ -684,6 +817,7 @@ export class CampusScene {
         x: a.point.x + (b.point.x - a.point.x) * t,
         z: a.point.z + (b.point.z - a.point.z) * t,
       },
+      y: a.y + (b.y - a.y) * t,
       heading: a.heading + dAngle * t,
       cumDist: dist,
     };
@@ -691,7 +825,7 @@ export class CampusScene {
 
   private positionAvatarAt(dist: number): RouteSample {
     const s = this.getSampleAt(dist);
-    this.avatarGroup.position.set(s.point.x, 0, s.point.z);
+    this.avatarGroup.position.set(s.point.x, s.y, s.point.z);
     this.avatarGroup.rotation.y = s.heading;
     return s;
   }
@@ -808,13 +942,13 @@ export class CampusScene {
       for (const p of this.pulseNodes) {
         const u = (p.offset + this.elapsed * speed) % 1;
         this.routeCurve.getPointAt(u, p.mesh.position);
-        p.mesh.position.y = 0.65;
+        p.mesh.position.y += 0.14;
         const s = 0.7 + Math.sin(u * Math.PI) * 0.5;
         p.mesh.scale.setScalar(s);
       }
     }
 
-    // 3. Animate destination beacon rings
+    // 3. Animate destination beacon rings & GPS user pulse
     if (this.destBeacon.visible) {
       this.destBeaconRings.forEach((ring, idx) => {
         const phase = (this.elapsed * 0.65 + idx * 0.5) % 1;
@@ -822,6 +956,12 @@ export class CampusScene {
         ring.scale.set(scale, scale, 1);
         (ring.material as THREE.MeshBasicMaterial).opacity = (1 - phase) * 0.72;
       });
+    }
+    if (this.userMarker.visible && this.userMarkerPulse) {
+      const phase = (this.elapsed * 0.8) % 1;
+      const scale = 0.8 + phase * 1.9;
+      this.userMarkerPulse.scale.set(scale, scale, 1);
+      (this.userMarkerPulse.material as THREE.MeshBasicMaterial).opacity = (1 - phase) * 0.8;
     }
 
     this.controls.update();

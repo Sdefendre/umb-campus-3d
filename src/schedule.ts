@@ -4,6 +4,13 @@ import type { ClassItem } from './types';
 
 const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
+export interface PdfTextItem {
+  str: string;
+  x: number;
+  y: number;
+  width?: number;
+}
+
 function formatIcalTime(dt: ICAL.Time | null): string {
   if (!dt) return '';
   const jsDate = dt.toJSDate();
@@ -120,9 +127,224 @@ export function parseIcsSchedule(icsText: string): ClassItem[] {
   return items;
 }
 
+const WEEKDAY_HEADER_MAP: Record<string, (typeof DAY_ORDER)[number]> = {
+  mon: 'Mon',
+  monday: 'Mon',
+  tue: 'Tue',
+  tues: 'Tue',
+  tuesday: 'Tue',
+  wed: 'Wed',
+  wednesday: 'Wed',
+  thu: 'Thu',
+  thur: 'Thu',
+  thurs: 'Thu',
+  thursday: 'Thu',
+  fri: 'Fri',
+  friday: 'Fri',
+  sat: 'Sat',
+  saturday: 'Sat',
+  sun: 'Sun',
+  sunday: 'Sun',
+};
+
+const AXIS_TIME_ONLY_RX = /^\d{1,2}(?::\d{2})?\s*(?:AM|PM)$/i;
+
+/**
+ * Attempts to parse multi-column weekly calendar-grid PDFs (e.g. WISER Weekly Schedule)
+ * where Mon..Fri headers sit across a top row and each class block occupies a vertical box
+ * inside its weekday column. Returns null if the page is not a weekly grid.
+ */
+function tryParseWeeklyGridPage(pageItems: PdfTextItem[]): ClassItem[] | null {
+  // 1. Find weekday header candidates grouped by approximate Y row
+  const headerCandidates: { day: (typeof DAY_ORDER)[number]; x: number; y: number }[] = [];
+  for (const it of pageItems) {
+    const token = it.str.trim().toLowerCase().replace(/[.:,]/g, '');
+    const day = WEEKDAY_HEADER_MAP[token];
+    if (!day) continue;
+    const centerX = it.x + (it.width ? it.width * 0.5 : it.str.length * 3);
+    headerCandidates.push({ day, x: centerX, y: it.y });
+  }
+  if (headerCandidates.length < 3) return null;
+
+  // Pick the Y row containing the most distinct weekdays separated in X
+  let bestRow: { day: (typeof DAY_ORDER)[number]; x: number; y: number }[] = [];
+  for (const anchor of headerCandidates) {
+    const row = headerCandidates.filter((c) => Math.abs(c.y - anchor.y) <= 12);
+    const uniqueDays = new Map<string, (typeof row)[number]>();
+    for (const c of row) {
+      if (!uniqueDays.has(c.day)) uniqueDays.set(c.day, c);
+    }
+    if (uniqueDays.size > bestRow.length) {
+      bestRow = [...uniqueDays.values()];
+    }
+  }
+  if (bestRow.length < 3) return null;
+
+  bestRow.sort((a, b) => a.x - b.x);
+  // Ensure headers are genuinely laid out in horizontal columns (at least 45pt apart on average)
+  const avgSpacing = (bestRow[bestRow.length - 1].x - bestRow[0].x) / (bestRow.length - 1);
+  if (avgSpacing < 45) return null;
+
+  const headerY = bestRow.reduce((sum, c) => sum + c.y, 0) / bestRow.length;
+  const colBounds = bestRow.map((col, idx) => {
+    const left =
+      idx === 0
+        ? col.x - avgSpacing * 0.48
+        : (bestRow[idx - 1].x + col.x) * 0.5;
+    const right =
+      idx === bestRow.length - 1
+        ? col.x + avgSpacing * 0.55
+        : (col.x + bestRow[idx + 1].x) * 0.5;
+    return { day: col.day, left, right, items: [] as PdfTextItem[] };
+  });
+
+  // 2. Bucket items below the header row into weekday columns
+  for (const it of pageItems) {
+    if (it.y >= headerY - 4) continue;
+    const text = it.str.trim();
+    if (!text) continue;
+    // Ignore left-margin time axis labels (e.g. "9:00 AM") outside first column
+    if (it.x < colBounds[0].left && AXIS_TIME_ONLY_RX.test(text)) continue;
+
+    const itemX = it.x + (it.width ? Math.min(it.width * 0.25, 20) : 6);
+    const col = colBounds.find((c) => itemX >= c.left && itemX < c.right);
+    if (col) col.items.push(it);
+  }
+
+  // 3. Within each column, group vertically adjacent lines into event cards
+  const seriesByKey = new Map<string, ClassItem>();
+  const results: ClassItem[] = [];
+
+  for (const col of colBounds) {
+    if (col.items.length === 0) continue;
+
+    // Group items inside this column into visual lines first (|dy| <= 4)
+    const lineBuckets = new Map<number, PdfTextItem[]>();
+    for (const it of col.items) {
+      const yKey = Math.round(it.y / 4) * 4;
+      const list = lineBuckets.get(yKey) ?? [];
+      list.push(it);
+      lineBuckets.set(yKey, list);
+    }
+    const colLines = [...lineBuckets.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([y, items]) => {
+        items.sort((a, b) => a.x - b.x);
+        return { y, text: items.map((i) => i.str.trim()).join(' ') };
+      });
+
+    // Cluster lines into discrete class cards when vertical gap > 18pt or a new course code starts
+    const cards: string[][] = [];
+    let currentCard: string[] = [];
+    let prevY: number | null = null;
+
+    for (const line of colLines) {
+      const startsNewCourse =
+        currentCard.length > 0 &&
+        COURSE_CODE_RX.test(line.text) &&
+        currentCard.some((l) => COURSE_CODE_RX.test(l));
+      const largeGap = prevY !== null && prevY - line.y > 18;
+
+      if (currentCard.length > 0 && (largeGap || startsNewCourse)) {
+        cards.push(currentCard);
+        currentCard = [];
+      }
+      currentCard.push(line.text);
+      prevY = line.y;
+    }
+    if (currentCard.length > 0) cards.push(currentCard);
+
+    for (const cardLines of cards) {
+      const combined = cardLines.join(' ').replace(/\s+/g, ' ').trim();
+      const courseMatch = combined.match(COURSE_CODE_RX);
+      const timeMatch = combined.match(TIME_RANGE_RX);
+      const isOnline = isOnlineOrUnassignedLocation(combined);
+      const resolved = isOnline ? { building: null, room: '' } : resolveBuildingFromText(combined);
+
+      if (!resolved.building && !(isOnline && courseMatch)) continue;
+
+      const titleLine = cardLines.find((l) => COURSE_CODE_RX.test(l)) ?? cardLines[0] ?? '';
+      const title =
+        titleLine.length >= 4 && titleLine.length <= 56
+          ? titleLine
+          : courseMatch
+            ? `${courseMatch[1]} ${courseMatch[2]}`
+            : resolved.building?.canonicalName ?? 'Class';
+      const timeLabel = timeMatch ? timeMatch[1].trim() : '';
+      const buildingId = resolved.building?.id ?? null;
+      const buildingName = resolved.building?.canonicalName ?? null;
+      const rawLocation = resolved.building
+        ? resolved.room
+          ? `${resolved.building.shortCode} ${resolved.room}`
+          : resolved.building.canonicalName
+        : 'Online / Unassigned';
+
+      const seriesKey = `${title.toLowerCase()}|${buildingId ?? 'none'}|${resolved.room}|${timeLabel}`;
+      const existing = seriesByKey.get(seriesKey);
+      if (existing) {
+        existing.daysLabel = mergeDayLabels(existing.daysLabel, [col.day]);
+        continue;
+      }
+
+      const item: ClassItem = {
+        id: `pdf-grid-${results.length}`,
+        title,
+        timeLabel,
+        daysLabel: col.day,
+        rawLocation,
+        room: resolved.room,
+        buildingId,
+        buildingName,
+      };
+      seriesByKey.set(seriesKey, item);
+      results.push(item);
+    }
+  }
+
+  return results.length > 0 ? results : null;
+}
+
+/**
+ * Pure parser for positioned PDF text items. Automatically handles both multi-column
+ * weekly calendar grids (WISER Weekly Schedule) and standard row-based schedule lists.
+ */
+export function parsePdfPages(pages: PdfTextItem[][]): ClassItem[] {
+  const gridItems: ClassItem[] = [];
+  const fallbackLines: string[] = [];
+
+  for (const pageItems of pages) {
+    const gridResult = tryParseWeeklyGridPage(pageItems);
+    if (gridResult) {
+      gridItems.push(...gridResult);
+      continue;
+    }
+
+    // Standard row-grouped line extraction
+    const rowBuckets = new Map<number, { x: number; str: string }[]>();
+    for (const item of pageItems) {
+      if (!item.str.trim()) continue;
+      const yKey = Math.round(item.y / 4) * 4;
+      const bucket = rowBuckets.get(yKey) ?? [];
+      bucket.push({ x: item.x, str: item.str });
+      rowBuckets.set(yKey, bucket);
+    }
+
+    const sortedRows = [...rowBuckets.entries()].sort((a, b) => b[0] - a[0]);
+    for (const [, bucket] of sortedRows) {
+      bucket.sort((a, b) => a.x - b.x);
+      fallbackLines.push(bucket.map((b) => b.str).join(' '));
+    }
+  }
+
+  if (gridItems.length > 0 && fallbackLines.length === 0) {
+    return gridItems;
+  }
+  return [...gridItems, ...parseTextSchedule(fallbackLines.join('\n'))];
+}
+
 /**
  * Extracts text from a PDF schedule completely client-side via pdfjs-dist,
- * then parses courses and room locations.
+ * then parses courses and room locations (supporting both list and weekly-grid PDFs).
  */
 export async function parsePdfSchedule(file: File): Promise<ClassItem[]> {
   const [pdfjsLib, { default: pdfWorkerUrl }] = await Promise.all([
@@ -140,30 +362,25 @@ export async function parsePdfSchedule(file: File): Promise<ClassItem[]> {
 
   try {
     const pdf = await loadingTask.promise;
-    const lines: string[] = [];
+    const pages: PdfTextItem[][] = [];
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
       const content = await page.getTextContent();
-
-      // Group text items into visual lines by Y coordinate
-      const rowBuckets = new Map<number, { x: number; str: string }[]>();
+      const pageItems: PdfTextItem[] = [];
       for (const item of content.items) {
         if (!('str' in item) || !item.str.trim()) continue;
         const tx = item.transform;
-        const yKey = Math.round(tx[5] / 4) * 4;
-        const bucket = rowBuckets.get(yKey) ?? [];
-        bucket.push({ x: tx[4], str: item.str });
-        rowBuckets.set(yKey, bucket);
+        pageItems.push({
+          str: item.str,
+          x: tx[4],
+          y: tx[5],
+          width: 'width' in item && typeof item.width === 'number' ? item.width : undefined,
+        });
       }
-
-      const sortedRows = [...rowBuckets.entries()].sort((a, b) => b[0] - a[0]);
-      for (const [, bucket] of sortedRows) {
-        bucket.sort((a, b) => a.x - b.x);
-        lines.push(bucket.map((b) => b.str).join(' '));
-      }
+      pages.push(pageItems);
     }
 
-    return parseTextSchedule(lines.join('\n'));
+    return parsePdfPages(pages);
   } finally {
     await loadingTask.destroy();
   }

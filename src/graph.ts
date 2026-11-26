@@ -1,11 +1,19 @@
 import { dist2D, pointInBuildingPolygons } from './geo';
-import type { BuildingRecord, Point2D } from './types';
+import type { BuildingRecord, Point2D, RouteMode, RoutePoint } from './types';
+
+interface GraphEdge {
+  to: number;
+  rawDist: number;
+  baseMult: number;
+  /** True when the edge is covered, a corridor, or crosses inside a building footprint */
+  sheltered: boolean;
+}
 
 interface GraphNode {
   id: number;
   point: Point2D;
   indoor: boolean;
-  edges: { to: number; weight: number; rawDist: number }[];
+  edges: GraphEdge[];
 }
 
 interface BuildingBounds {
@@ -28,7 +36,7 @@ const HIGHWAY_WEIGHT_MULTIPLIER: Record<string, number> = {
   pedestrian: 1.0,
   steps: 1.15,
   cycleway: 1.1,
-  corridor: 2.2,
+  corridor: 1.0,
   living_street: 1.2,
   service: 1.35,
   residential: 1.4,
@@ -82,7 +90,8 @@ class MinHeap {
 
 export class CampusFootwayGraph {
   private readonly nodes: GraphNode[] = [];
-  private readonly mainComponent = new Set<number>();
+  private readonly outdoorComponent = new Set<number>();
+  private readonly fullComponent = new Set<number>();
 
   constructor(paths: WalkPathInput[], buildings: BuildingRecord[] = []) {
     const bBounds: BuildingBounds[] = buildings.map((b) => {
@@ -136,89 +145,110 @@ export class CampusFootwayGraph {
     };
 
     for (const path of paths) {
-      if (path.covered) continue;
       const baseMult = HIGHWAY_WEIGHT_MULTIPLIER[path.highway] ?? 1.25;
+      const pathCovered = Boolean(path.covered || path.highway === 'corridor');
       for (let i = 1; i < path.points.length; i++) {
         const rawA = path.points[i - 1];
         const rawB = path.points[i];
         const d = dist2D(rawA, rawB);
         if (d < 0.05) continue;
-        if (segmentCrossesBuilding(rawA, rawB, d)) continue;
+
+        const crosses = segmentCrossesBuilding(rawA, rawB, d);
+        const sheltered = pathCovered || crosses;
 
         const a = getOrCreate(rawA);
         const b = getOrCreate(rawB);
         if (a === b) continue;
 
-        const w = d * baseMult;
-        this.nodes[a].edges.push({ to: b, weight: w, rawDist: d });
-        this.nodes[b].edges.push({ to: a, weight: w, rawDist: d });
+        this.nodes[a].edges.push({ to: b, rawDist: d, baseMult, sheltered });
+        this.nodes[b].edges.push({ to: a, rawDist: d, baseMult, sheltered });
       }
     }
 
-    this.computeLargestComponent();
+    this.computeLargestComponents();
   }
 
-  private computeLargestComponent(): void {
-    const visited = new Uint8Array(this.nodes.length);
-    let best: number[] = [];
+  private computeLargestComponents(): void {
+    const findLargest = (outdoorOnly: boolean): Set<number> => {
+      const visited = new Uint8Array(this.nodes.length);
+      let best: number[] = [];
 
-    for (let i = 0; i < this.nodes.length; i++) {
-      if (visited[i] || this.nodes[i].edges.length === 0) continue;
-      const comp: number[] = [];
-      const stack = [i];
-      visited[i] = 1;
-      while (stack.length > 0) {
-        const u = stack.pop()!;
-        comp.push(u);
-        for (const e of this.nodes[u].edges) {
-          if (!visited[e.to]) {
-            visited[e.to] = 1;
-            stack.push(e.to);
+      for (let i = 0; i < this.nodes.length; i++) {
+        if (visited[i]) continue;
+        const hasEdge = this.nodes[i].edges.some((e) => !outdoorOnly || !e.sheltered);
+        if (!hasEdge) continue;
+        const comp: number[] = [];
+        const stack = [i];
+        visited[i] = 1;
+        while (stack.length > 0) {
+          const u = stack.pop()!;
+          comp.push(u);
+          for (const e of this.nodes[u].edges) {
+            if (outdoorOnly && e.sheltered) continue;
+            if (!visited[e.to]) {
+              visited[e.to] = 1;
+              stack.push(e.to);
+            }
           }
         }
+        if (comp.length > best.length) best = comp;
       }
-      if (comp.length > best.length) best = comp;
-    }
+      return new Set(best);
+    };
 
-    for (const id of best) this.mainComponent.add(id);
+    const outdoor = findLargest(true);
+    for (const id of outdoor) this.outdoorComponent.add(id);
+
+    const full = findLargest(false);
+    for (const id of full) this.fullComponent.add(id);
   }
 
   findNearestNode(target: Point2D, preferOutdoor = true): number {
+    const primaryPool =
+      preferOutdoor && this.outdoorComponent.size > 0
+        ? this.outdoorComponent
+        : this.fullComponent.size > 0
+          ? this.fullComponent
+          : this.nodes.map((n) => n.id);
+
     let bestId = -1;
     let bestDist = Infinity;
-    let bestOutdoorId = -1;
-    let bestOutdoorDist = Infinity;
-    const pool = this.mainComponent.size > 0 ? this.mainComponent : this.nodes.map((n) => n.id);
-
-    for (const id of pool) {
-      const node = this.nodes[id];
-      const d = dist2D(node.point, target);
+    for (const id of primaryPool) {
+      const d = dist2D(this.nodes[id].point, target);
       if (d < bestDist) {
         bestDist = d;
         bestId = id;
       }
-      if (!node.indoor && d < bestOutdoorDist) {
-        bestOutdoorDist = d;
-        bestOutdoorId = id;
-      }
     }
-    return preferOutdoor && bestOutdoorId >= 0 ? bestOutdoorId : bestId;
+    return bestId;
   }
 
   /**
    * Computes shortest walking path using A* over the OSM footway graph.
+   * - mode='outdoor' (default): strictly uses outdoor walkways that never cross building footprints.
+   * - mode='catwalk': enables and favors UMB's covered catwalk & indoor skybridge shortcuts.
    */
-  findRoute(start: Point2D, goal: Point2D): { points: Point2D[]; distanceMeters: number } | null {
-    const startId = this.findNearestNode(start);
-    const goalId = this.findNearestNode(goal);
+  findRoute(
+    start: Point2D,
+    goal: Point2D,
+    mode: RouteMode = 'outdoor'
+  ): { points: RoutePoint[]; distanceMeters: number; usesCatwalks: boolean } | null {
+    const outdoorOnly = mode === 'outdoor';
+    const startId = this.findNearestNode(start, outdoorOnly);
+    const goalId = this.findNearestNode(goal, outdoorOnly);
     if (startId < 0 || goalId < 0) return null;
 
     const startToFirst = dist2D(start, this.nodes[startId].point);
 
     if (startId === goalId) {
+      const indoor = !outdoorOnly && this.nodes[startId].indoor;
       return {
-        points: [this.nodes[startId].point, goal],
+        points: [
+          { ...this.nodes[startId].point, indoor },
+          { ...goal, indoor },
+        ],
         distanceMeters: startToFirst + dist2D(this.nodes[startId].point, goal),
+        usesCatwalks: indoor,
       };
     }
 
@@ -226,14 +256,18 @@ export class CampusFootwayGraph {
     const gScore = new Float64Array(n).fill(Infinity);
     const distScore = new Float64Array(n).fill(Infinity);
     const cameFrom = new Int32Array(n).fill(-1);
+    const viaSheltered = new Uint8Array(n);
     const closed = new Uint8Array(n);
 
     const goalPt = this.nodes[goalId].point;
+    // Scale heuristic to stay admissible when sheltered edges have a 0.85x bonus in catwalk mode
+    const hScale = outdoorOnly ? 1.0 : 0.8;
+
     gScore[startId] = 0;
     distScore[startId] = 0;
 
     const open = new MinHeap();
-    open.push(startId, dist2D(this.nodes[startId].point, goalPt));
+    open.push(startId, dist2D(this.nodes[startId].point, goalPt) * hScale);
 
     while (open.size > 0) {
       const current = open.pop()!;
@@ -243,14 +277,18 @@ export class CampusFootwayGraph {
       closed[u] = 1;
 
       for (const edge of this.nodes[u].edges) {
+        if (outdoorOnly && edge.sheltered) continue;
         const v = edge.to;
         if (closed[v]) continue;
-        const tentativeG = gScore[u] + edge.weight;
+
+        const shelterMult = !outdoorOnly && edge.sheltered ? 0.85 : 1.0;
+        const tentativeG = gScore[u] + edge.rawDist * edge.baseMult * shelterMult;
         if (tentativeG < gScore[v]) {
           cameFrom[v] = u;
+          viaSheltered[v] = edge.sheltered ? 1 : 0;
           gScore[v] = tentativeG;
           distScore[v] = distScore[u] + edge.rawDist;
-          const h = dist2D(this.nodes[v].point, goalPt);
+          const h = dist2D(this.nodes[v].point, goalPt) * hScale;
           open.push(v, tentativeG + h);
         }
       }
@@ -258,17 +296,37 @@ export class CampusFootwayGraph {
 
     if (cameFrom[goalId] === -1) return null;
 
-    const pathPoints: Point2D[] = [];
+    const nodeIds: number[] = [];
     let cur = goalId;
     while (cur !== -1) {
-      pathPoints.push(this.nodes[cur].point);
+      nodeIds.push(cur);
       cur = cameFrom[cur];
     }
-    pathPoints.reverse();
+    nodeIds.reverse();
+
+    let usesCatwalks = false;
+    const pathPoints: RoutePoint[] = nodeIds.map((id, idx) => {
+      if (outdoorOnly) {
+        return {
+          x: this.nodes[id].point.x,
+          z: this.nodes[id].point.z,
+          indoor: false,
+        };
+      }
+      const nextSheltered = idx + 1 < nodeIds.length && viaSheltered[nodeIds[idx + 1]] === 1;
+      const indoor = this.nodes[id].indoor || viaSheltered[id] === 1 || nextSheltered;
+      if (indoor) usesCatwalks = true;
+      return {
+        x: this.nodes[id].point.x,
+        z: this.nodes[id].point.z,
+        indoor,
+      };
+    });
 
     return {
       points: pathPoints,
       distanceMeters: startToFirst + distScore[goalId],
+      usesCatwalks,
     };
   }
 }
