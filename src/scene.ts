@@ -59,6 +59,7 @@ export class CampusScene {
 
   private lastTime = 0;
   private elapsed = 0;
+  private cachedSafeBottom: number | null = null;
   private readonly tmpVec = new THREE.Vector3();
   private readonly desiredCamPos = new THREE.Vector3();
   private readonly desiredTarget = new THREE.Vector3();
@@ -828,14 +829,21 @@ export class CampusScene {
     this.updateLabels();
   };
 
+  invalidateLayout(): void {
+    this.cachedSafeBottom = null;
+  }
+
   private updateLabels(): void {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     if (width === 0 || height === 0) return;
 
     const isNarrow = width < 900;
-    const panelEl = isNarrow ? document.getElementById('panel') : null;
-    const safeBottom = panelEl ? panelEl.getBoundingClientRect().top - 12 : height - 24;
+    if (isNarrow && this.cachedSafeBottom === null) {
+      const panelEl = document.getElementById('panel');
+      this.cachedSafeBottom = panelEl ? panelEl.getBoundingClientRect().top - 12 : height - 24;
+    }
+    const safeBottom = isNarrow ? (this.cachedSafeBottom ?? height - 24) : height - 24;
     const safeTop = 64;
 
     for (const vis of this.buildings.values()) {
@@ -871,6 +879,7 @@ export class CampusScene {
   private handleResize = (): void => {
     const width = this.container.clientWidth || window.innerWidth;
     const height = this.container.clientHeight || window.innerHeight;
+    this.cachedSafeBottom = null;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);

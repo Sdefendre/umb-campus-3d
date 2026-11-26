@@ -1,8 +1,9 @@
 import { PerspectiveCamera, Vector3 } from 'three';
 
 /**
- * Lightweight, mobile-first orbit/pan/pinch-zoom camera controller with damping.
- * Replaces ~38 KB OrbitControls with a focused controller tailored to campus navigation.
+ * Lightweight, mobile-first orbit/pan/pinch-zoom camera controller with OrbitControls-equivalent
+ * exponential damping (each frame applies `k` of pending motion and retains `1 - k`, so the
+ * geometric sum equals exactly 1.0x of the user's input).
  */
 export class CampusControls {
   readonly target = new Vector3();
@@ -13,6 +14,7 @@ export class CampusControls {
   minDistance = 24;
   maxDistance = 950;
   maxPolarAngle = Math.PI * 0.465;
+  dampingFactor = 0.16;
   private readonly minPolarAngle = 0.08;
 
   private theta = 0;
@@ -20,7 +22,7 @@ export class CampusControls {
   private radius = 320;
   private dTheta = 0;
   private dPhi = 0;
-  private scaleFactor = 1;
+  private logScale = 0;
   private readonly panOffset = new Vector3();
   private readonly offset = new Vector3();
   private readonly tmpA = new Vector3();
@@ -50,7 +52,7 @@ export class CampusControls {
       this.active ||
       Math.abs(this.dTheta) > 1e-4 ||
       Math.abs(this.dPhi) > 1e-4 ||
-      Math.abs(this.scaleFactor - 1) > 1e-4 ||
+      Math.abs(this.logScale) > 1e-4 ||
       this.panOffset.lengthSq() > 1e-4
     );
   }
@@ -61,11 +63,20 @@ export class CampusControls {
     this.theta = Math.atan2(this.offset.x, this.offset.z);
     this.phi = Math.acos(Math.max(-1, Math.min(1, this.offset.y / this.radius)));
 
-    this.theta += this.dTheta;
-    this.phi = Math.max(this.minPolarAngle, Math.min(this.maxPolarAngle, this.phi + this.dPhi));
-    this.radius = Math.max(this.minDistance, Math.min(this.maxDistance, this.radius * this.scaleFactor));
+    const k = this.dampingFactor;
+    const rem = 1 - k;
 
-    this.target.add(this.panOffset);
+    this.theta += this.dTheta * k;
+    this.phi = Math.max(
+      this.minPolarAngle,
+      Math.min(this.maxPolarAngle, this.phi + this.dPhi * k)
+    );
+    this.radius = Math.max(
+      this.minDistance,
+      Math.min(this.maxDistance, this.radius * Math.exp(this.logScale * k))
+    );
+
+    this.target.addScaledVector(this.panOffset, k);
     this.target.y = Math.max(-20, Math.min(120, this.target.y));
 
     const sinPhi = Math.sin(this.phi);
@@ -77,11 +88,27 @@ export class CampusControls {
     this.camera.position.copy(this.target).add(this.offset);
     this.camera.lookAt(this.target);
 
-    // Smooth exponential damping
-    this.dTheta *= 0.86;
-    this.dPhi *= 0.86;
-    this.scaleFactor = 1 + (this.scaleFactor - 1) * 0.8;
-    this.panOffset.multiplyScalar(0.82);
+    // Retain the unapplied fraction so total displacement converges to exactly 1.0x input
+    this.dTheta *= rem;
+    this.dPhi *= rem;
+    this.logScale *= rem;
+    this.panOffset.multiplyScalar(rem);
+
+    if (Math.abs(this.dTheta) < 1e-6) this.dTheta = 0;
+    if (Math.abs(this.dPhi) < 1e-6) this.dPhi = 0;
+    if (Math.abs(this.logScale) < 1e-6) this.logScale = 0;
+    if (this.panOffset.lengthSq() < 1e-8) this.panOffset.set(0, 0, 0);
+  }
+
+  dispose(): void {
+    this.dom.removeEventListener('pointerdown', this.onPointerDown);
+    this.dom.removeEventListener('pointermove', this.onPointerMove);
+    this.dom.removeEventListener('pointerup', this.onPointerUp);
+    this.dom.removeEventListener('pointercancel', this.onPointerUp);
+    this.dom.removeEventListener('wheel', this.onWheel);
+    this.dom.removeEventListener('contextmenu', this.onContextMenu);
+    this.pointers.clear();
+    this.active = false;
   }
 
   private pan(dx: number, dy: number): void {
@@ -90,7 +117,6 @@ export class CampusControls {
     const scale = (2 * dist * Math.tan((this.camera.fov * Math.PI) / 360)) / h;
 
     this.tmpA.setFromMatrixColumn(this.camera.matrix, 0).multiplyScalar(-dx * scale);
-    this.tmpB.setFromMatrixColumn(this.camera.matrix, 0).crossVectors(this.camera.up, this.tmpA);
     // Horizontal forward vector on ground plane
     this.tmpB.copy(this.camera.position).sub(this.target);
     this.tmpB.y = 0;
@@ -103,7 +129,7 @@ export class CampusControls {
   };
 
   private onPointerDown = (e: PointerEvent): void => {
-    this.dom.setPointerCapture(e.pointerId);
+    this.dom.setPointerCapture?.(e.pointerId);
     this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     this.active = true;
     this.isPanning = e.button === 2 || e.shiftKey;
@@ -127,16 +153,16 @@ export class CampusControls {
       if (this.isPanning) {
         this.pan(dx, dy);
       } else {
-        const w = Math.max(1, this.dom.clientHeight);
-        this.dTheta -= (2 * Math.PI * dx) / w * 0.45;
-        this.dPhi -= (2 * Math.PI * dy) / w * 0.45;
+        const h = Math.max(1, this.dom.clientHeight);
+        this.dTheta -= (2 * Math.PI * dx) / h;
+        this.dPhi -= (2 * Math.PI * dy) / h;
       }
     } else if (this.pointers.size === 2) {
       const [a, b] = [...this.pointers.values()];
       const dist = Math.hypot(b.x - a.x, b.y - a.y);
       const mid = { x: (a.x + b.x) * 0.5, y: (a.y + b.y) * 0.5 };
       if (this.lastPinchDist > 1 && dist > 1) {
-        this.scaleFactor *= Math.pow(this.lastPinchDist / dist, 0.7);
+        this.logScale += Math.log(this.lastPinchDist / dist);
       }
       this.pan(mid.x - this.lastMid.x, mid.y - this.lastMid.y);
       this.lastPinchDist = dist;
@@ -150,8 +176,11 @@ export class CampusControls {
   };
 
   private onWheel = (e: WheelEvent): void => {
+    if (e.deltaY === 0) return;
     e.preventDefault();
-    this.scaleFactor *= e.deltaY > 0 ? 1.07 : 0.93;
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 120 : 1;
+    const scaledDy = Math.max(-180, Math.min(180, e.deltaY * unit));
+    this.logScale += scaledDy * 0.0012;
     this.onStart?.();
   };
 }
