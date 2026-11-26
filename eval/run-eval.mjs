@@ -105,7 +105,13 @@ function startStaticServer(dir) {
     const server = http.createServer(async (req, res) => {
       const urlPath = (req.url || '/').split('?')[0];
       const rel = urlPath === '/' ? 'index.html' : urlPath.replace(/^\/+/, '');
-      const fullPath = path.join(dir, rel);
+      const resolvedRoot = path.resolve(dir);
+      const fullPath = path.resolve(resolvedRoot, rel);
+      if (fullPath !== resolvedRoot && !fullPath.startsWith(resolvedRoot + path.sep)) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
       try {
         const data = await fs.readFile(fullPath);
         const ext = path.extname(fullPath);
@@ -466,9 +472,9 @@ async function evalParserAndRouting() {
       const reachesEntrance = distToBuildingEdge <= 45;
 
       const lengthWithinTol =
-        !ref ||
-        (res.distanceMeters >= ref.distanceMeters * 0.85 &&
-          res.distanceMeters <= ref.distanceMeters * 1.35);
+        Boolean(ref) &&
+        res.distanceMeters >= ref.distanceMeters * 0.85 &&
+        res.distanceMeters <= ref.distanceMeters * 1.35;
 
       let buildingCrossings = 0;
       let waterCrossings = 0;
@@ -607,7 +613,7 @@ async function evalPrivacyAndInstallability(browser, origin) {
   const checkLeak = (str) =>
     typeof str === 'string' && PRIVACY_SENTINELS.some((s) => str.includes(s));
 
-  page.on('request', (req) => {
+  ctx.on('request', (req) => {
     const url = req.url();
     if (!url.startsWith(origin) && !url.startsWith('data:') && !url.startsWith('blob:')) {
       nonSameOriginRequests.push(url);

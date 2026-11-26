@@ -1,6 +1,8 @@
 # Reference Campus Photos — Attribution & Fixed Camera Spots
 
-All reference photographs used in the realism edge/silhouette SSIM metric are openly licensed from Wikimedia Commons.
+All reference photographs used in the realism edge/silhouette SSIM metric are openly licensed from Wikimedia Commons. These image files are **not** covered by the repository's MIT license; each remains under its respective Creative Commons license listed below (note `aerial-2024.jpg` is CC BY-SA 4.0).
+
+**Modifications:** Each photograph was downscaled (aspect-preserving JPEG resize) from the original Wikimedia Commons upload to 960 px wide (`960×640` for `west-2025.jpg` and `isc-2025.jpg`, `960×720` for `aerial-2024.jpg`) for compact local evaluation storage.
 
 | File | Wikimedia Commons Title | Author | License | Source URL | Fixed Camera Spot (`x,y,z -> tx,ty,tz`, `fov`) |
 | --- | --- | --- | --- | --- | --- |
