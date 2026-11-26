@@ -29,6 +29,9 @@ Load your class schedule (`.ics`, `.pdf`, or pasted text) or tap **Try demo sche
   - Strict outdoor A* routing by default, plus an **Outdoor / Catwalks** toggle for UMB's sheltered skybridges/corridors with elevated teal route rendering and automatic X-ray transparency on traversed buildings.
   - Selectable campus entrances, **My Location (GPS)** (100% on-device with campus-bounds validation), and **Class-to-Class chaining** (`Previous class (auto-chain)` + `Next class →` stepping).
   - Animated low-poly walking avatar, **Chase** and **Top-Down** camera modes, and play/pause/replay controls.
+- **Door-to-Door Routes & Next-Class Countdown (M3):**
+  - Routes end at a real building door. The app uses the 61 OSM `entrance=*` nodes on campus, matches each to the building outline it sits on, and picks the nearest reachable door. It falls back to the nearest footway when OSM maps no usable door (Clark Athletic Center today, and Wheatley/Healey in Outdoor mode because their doors open onto the plaza podium deck).
+  - A **Next class** card finds your next in-person meeting from the schedule's days and times. It shows **Leave in N min** using the walk time from your chosen start or live GPS, and it updates every 30 s. Loading a schedule opens the route to that class. Tap the card to route to it again.
 - **Phone-First Installable PWA:** Designed for `390x844` mobile viewports with `viewport-fit=cover`, `env(safe-area-inset-*)` padding, web app manifest, icons, and an offline-capable service worker, scaling cleanly to desktop screens.
 
 ## Privacy

@@ -386,6 +386,20 @@ async function main() {
     features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: coords } });
   }
 
+  // Building doors (OSM entrance=*), so routes end at a real door instead of a centroid.
+  // The app assigns each door to the building whose outline it sits on.
+  for (const node of nodeMap.values()) {
+    const ent = node.tags?.entrance;
+    if (!ent || ent === 'no' || ent === 'room' || ent === 'emergency') continue;
+    const props = { kind: 'entrance', osmId: `node/${node.id}`, entrance: ent };
+    if (node.tags.wheelchair) props.wheelchair = node.tags.wheelchair;
+    features.push({
+      type: 'Feature',
+      properties: props,
+      geometry: { type: 'Point', coordinates: [roundCoord(node.lon), roundCoord(node.lat)] },
+    });
+  }
+
   // Dorchester Bay / Columbia Point coastline (stitched OSM natural=coastline ways)
   const coastSegs = [];
   for (const way of wayMap.values()) {
@@ -510,8 +524,9 @@ async function main() {
   const cCount = features.filter((f) => f.properties.kind === 'coastline').length;
   const sCount = features.filter((f) => f.properties.kind === 'surface').length;
   const rCount = features.filter((f) => f.properties.kind === 'roofPart').length;
+  const eCount = features.filter((f) => f.properties.kind === 'entrance').length;
   console.log(
-    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${rCount} roofParts, ${pCount} paths, ${sCount} surfaces, ${cCount} coastlines.`
+    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${rCount} roofParts, ${eCount} entrances, ${pCount} paths, ${sCount} surfaces, ${cCount} coastlines.`
   );
 }
 

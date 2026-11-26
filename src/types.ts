@@ -64,6 +64,14 @@ export interface SurfaceProperties {
   sport?: string;
 }
 
+export interface EntranceProperties {
+  kind: 'entrance';
+  osmId: string;
+  /** OSM entrance=* value: main, yes, service, ... */
+  entrance: string;
+  wheelchair?: string;
+}
+
 export interface CoastlineProperties {
   kind: 'coastline';
   osmId: string;
@@ -99,6 +107,11 @@ export type CampusFeature =
     }
   | {
       type: 'Feature';
+      properties: EntranceProperties;
+      geometry: { type: 'Point'; coordinates: number[] };
+    }
+  | {
+      type: 'Feature';
       properties: CoastlineProperties;
       geometry: { type: 'LineString'; coordinates: number[][] };
     };
@@ -114,6 +127,13 @@ export interface BuildingRecord {
   centroid: Point2D;
   /** Projected polygon rings: each polygon is [outerRing, ...holes] */
   polygons: Point2D[][][];
+  /** OSM doors on this building's outline (empty when OSM maps none) */
+  entrances?: EntranceRecord[];
+}
+
+export interface EntranceRecord extends Point2D {
+  main: boolean;
+  wheelchair: boolean;
 }
 
 export interface RoofPartRecord {

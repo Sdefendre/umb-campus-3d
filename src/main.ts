@@ -1,13 +1,15 @@
 import './style.css';
 import { MAJOR_BUILDINGS, START_POINTS, matchOsmMajorBuilding } from './buildings';
 import { LocalProjector, polygonCentroid } from './geo';
-import { CampusFootwayGraph } from './graph';
+import { CampusFootwayGraph, assignEntrances } from './graph';
+import { findNextClass, formatClock, leaveAdvice, walkMinutes } from './nextClass';
 import { CampusScene } from './scene';
 import type {
   BuildingRecord,
   CameraMode,
   CampusGeoJSON,
   ClassItem,
+  EntranceRecord,
   LonLat,
   Point2D,
   RoadRecord,
@@ -45,6 +47,9 @@ const scheduleViewEl = document.getElementById('schedule-view')!;
 const classListEl = document.getElementById('class-list')!;
 const scheduleCountEl = document.getElementById('schedule-count')!;
 const errorBannerEl = document.getElementById('error-banner')!;
+const nextCardEl = document.getElementById('next-card')!;
+const nextLeaveEl = document.getElementById('next-leave')!;
+const nextDetailEl = document.getElementById('next-detail')!;
 
 const btnDemoEl = document.getElementById('btn-demo')!;
 const fileInputEl = document.getElementById('file-input') as HTMLInputElement;
@@ -283,7 +288,7 @@ function routeToBuilding(buildingId: string, customLabel?: string): void {
   const origin = resolveStartPoint(buildingId);
   if (!origin) return;
 
-  const res = graph.findRoute(origin.point, building.centroid, routeMode);
+  const res = graph.findRouteToBuilding(origin.point, building, routeMode);
   if (!res) {
     showError(`Could not compute a footway route to ${building.name}.`);
     return;
@@ -292,14 +297,35 @@ function routeToBuilding(buildingId: string, customLabel?: string): void {
   clearError();
   scene.setRoute(res.points, building.id);
 
-  // Average walking speed ~1.35 m/s (~81 m/min)
-  const walkMinutes = Math.max(1, Math.round(res.distanceMeters / 81));
   routeDestNameEl.textContent = customLabel ?? building.name;
-  routeEtaEl.textContent = `${walkMinutes} min walk`;
+  routeEtaEl.textContent = `${walkMinutes(res.distanceMeters)} min walk`;
   routeDistEl.textContent = `${Math.round(res.distanceMeters)} m`;
   routeOriginLabelEl.textContent = `from ${origin.shortLabel}`;
   routeCatwalkPillEl.classList.toggle('is-hidden', !res.usesCatwalks);
   routeHudEl.classList.remove('is-hidden');
+  renderNextClass();
+}
+
+/** Refreshes the "Next class" card: soonest upcoming meeting and when to leave for it. */
+function renderNextClass(): void {
+  const now = new Date();
+  const next = findNextClass(classes, now);
+  const building = next?.item.buildingId ? majorBuildingsMap.get(next.item.buildingId) : null;
+  const origin = building ? resolveStartPoint(building.id) : null;
+  const route = building && origin && graph ? graph.findRouteToBuilding(origin.point, building, routeMode) : null;
+  if (!next || !building || !origin || !route) {
+    nextCardEl.classList.add('is-hidden');
+    return;
+  }
+  const walk = walkMinutes(route.distanceMeters);
+  const where = next.item.room ? `${building.shortCode} ${next.item.room}` : building.name;
+  nextLeaveEl.textContent = leaveAdvice(next.startsAt, walk, now);
+  // "CS 240 — Programming in C" → "CS 240" so the walk time fits on a phone
+  const course = next.item.title.split(/\s+[—–-]\s+/)[0];
+  nextDetailEl.textContent = `${course} · ${formatClock(next.startsAt, now)} · ${where} · ${walk} min walk`;
+  nextCardEl.title = `${next.item.title} — ${walk} min walk from ${origin.shortLabel}`;
+  nextCardEl.dataset.classId = next.item.id;
+  nextCardEl.classList.remove('is-hidden');
 }
 
 function recomputeActiveRoute(): void {
@@ -409,7 +435,7 @@ function applyParsedClasses(parsed: ClassItem[], sourceLabel: string): void {
   populateStartPoints();
   renderClassList();
 
-  const firstMatched = classes.find((c) => c.buildingId);
+  const firstMatched = findNextClass(classes, new Date())?.item ?? classes.find((c) => c.buildingId);
   if (firstMatched) {
     selectClass(firstMatched);
   } else {
@@ -468,6 +494,7 @@ async function loadCampusData(): Promise<void> {
   const roads: RoadRecord[] = [];
   const surfaces: SurfaceRecord[] = [];
   const coastlines: Point2D[][] = [];
+  const doors: EntranceRecord[] = [];
 
   for (const feat of data.features) {
     if (feat.properties.kind === 'building') {
@@ -532,6 +559,13 @@ async function loadCampusData(): Promise<void> {
           ring,
         });
       }
+    } else if (feat.properties.kind === 'entrance' && feat.geometry.type === 'Point') {
+      const [lon, lat] = feat.geometry.coordinates;
+      doors.push({
+        ...projector.project(lon, lat),
+        main: feat.properties.entrance === 'main',
+        wheelchair: feat.properties.wheelchair === 'yes',
+      });
     } else if (feat.properties.kind === 'coastline' && feat.geometry.type === 'LineString') {
       const pts = projector.projectRing(feat.geometry.coordinates);
       if (pts.length >= 2) {
@@ -540,6 +574,7 @@ async function loadCampusData(): Promise<void> {
     }
   }
 
+  assignEntrances(buildings, doors);
   graph = new CampusFootwayGraph(paths, buildings);
   scene.loadCampus({ buildings, roofParts, paths, roads, surfaces, coastlines });
 
@@ -597,7 +632,17 @@ btnParsePasteEl.addEventListener('click', () => {
     });
 });
 
+nextCardEl.addEventListener('click', () => {
+  const item = classes.find((c) => c.id === nextCardEl.dataset.classId);
+  if (item) selectClass(item);
+});
+// Keep the "leave in" countdown current while the app is open
+setInterval(() => {
+  if (classes.length > 0 && !document.hidden) renderNextClass();
+}, 30_000);
+
 btnClearEl.addEventListener('click', () => {
+  nextCardEl.classList.add('is-hidden');
   classes = [];
   selectedClassId = null;
   selectedBuildingId = null;

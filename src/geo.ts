@@ -90,3 +90,18 @@ export function pointInBuildingPolygons(pt: Point2D, polygons: Point2D[][][]): b
   }
   return false;
 }
+
+/** Shortest distance from a point to a closed ring's edges. */
+export function distToRing(pt: Point2D, ring: Point2D[]): number {
+  let best = Infinity;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[j];
+    const b = ring[i];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len2 = dx * dx + dz * dz;
+    const t = len2 > 0 ? Math.max(0, Math.min(1, ((pt.x - a.x) * dx + (pt.z - a.z) * dz) / len2)) : 0;
+    best = Math.min(best, Math.hypot(pt.x - (a.x + dx * t), pt.z - (a.z + dz * t)));
+  }
+  return best;
+}

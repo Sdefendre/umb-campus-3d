@@ -1,5 +1,5 @@
-import { dist2D, pointInBuildingPolygons } from './geo';
-import type { BuildingRecord, Point2D, RouteMode, RoutePoint } from './types';
+import { dist2D, distToRing, pointInBuildingPolygons } from './geo';
+import type { BuildingRecord, EntranceRecord, Point2D, RouteMode, RoutePoint } from './types';
 
 interface GraphEdge {
   to: number;
@@ -43,6 +43,43 @@ const HIGHWAY_WEIGHT_MULTIPLIER: Record<string, number> = {
   unclassified: 1.45,
   tertiary: 1.6,
 };
+
+/** A door counts as part of a building when it sits within this distance of its outline. */
+const DOOR_SNAP_M = 3;
+/** Longest straight walk allowed from the last footway node to a door. */
+const MAX_DOOR_LEG_M = 25;
+
+export interface BuildingRoute {
+  points: RoutePoint[];
+  distanceMeters: number;
+  usesCatwalks: boolean;
+  /** True when the route ends at a mapped OSM door rather than the building centroid. */
+  endsAtDoor: boolean;
+}
+
+/**
+ * Attaches each OSM entrance to the building whose outline it lies on (or inside),
+ * writing the result to `building.entrances`.
+ */
+export function assignEntrances(buildings: BuildingRecord[], doors: EntranceRecord[]): void {
+  for (const b of buildings) b.entrances = [];
+  for (const door of doors) {
+    let best: BuildingRecord | null = null;
+    let bestDist = DOOR_SNAP_M;
+    for (const b of buildings) {
+      for (const poly of b.polygons) {
+        if (poly.length === 0) continue;
+        const d = pointInBuildingPolygons(door, [poly]) ? 0 : distToRing(door, poly[0]);
+        // Plaza towers share outline edges with the podium: on a tie, the named campus building wins
+        if (d < bestDist || (d === bestDist && b.isMajor && !best?.isMajor)) {
+          bestDist = d;
+          best = b;
+        }
+      }
+    }
+    best?.entrances!.push(door);
+  }
+}
 
 /**
  * Min-heap priority queue for A* pathfinding.
@@ -224,6 +261,31 @@ export class CampusFootwayGraph {
   }
 
   /**
+   * Routes to the building's nearest reachable door. Falls back to the centroid when OSM
+   * maps no usable door, so every building stays routable.
+   */
+  findRouteToBuilding(start: Point2D, building: BuildingRecord, mode: RouteMode = 'outdoor'): BuildingRoute | null {
+    let best: BuildingRoute | null = null;
+    for (const door of building.entrances ?? []) {
+      const res = this.findRoute(start, door, mode);
+      if (!res) continue;
+      const last = res.points[res.points.length - 1];
+      // Catwalk routes may already arrive inside the building through a corridor
+      const arrivedInside = Boolean(last.indoor) && pointInBuildingPolygons(last, building.polygons);
+      const leg = arrivedInside ? 0 : dist2D(last, door);
+      if (leg > MAX_DOOR_LEG_M || (!arrivedInside && legEntersBuilding(last, door, building))) continue;
+      const points = leg > 0.5 ? [...res.points, { x: door.x, z: door.z, indoor: false }] : res.points;
+      const distanceMeters = res.distanceMeters + leg;
+      if (!best || distanceMeters < best.distanceMeters) {
+        best = { points, distanceMeters, usesCatwalks: res.usesCatwalks, endsAtDoor: true };
+      }
+    }
+    if (best) return best;
+    const res = this.findRoute(start, building.centroid, mode);
+    return res ? { ...res, endsAtDoor: false } : null;
+  }
+
+  /**
    * Computes shortest walking path using A* over the OSM footway graph.
    * - mode='outdoor' (default): strictly uses outdoor walkways that never cross building footprints.
    * - mode='catwalk': enables and favors UMB's covered catwalk & indoor skybridge shortcuts.
@@ -329,4 +391,18 @@ export class CampusFootwayGraph {
       usesCatwalks,
     };
   }
+}
+
+/** True when the straight leg to a door passes through the building interior. */
+function legEntersBuilding(from: Point2D, door: Point2D, building: BuildingRecord): boolean {
+  const len = dist2D(from, door);
+  // Stop short of the door itself, which sits on the outline
+  const steps = Math.max(2, Math.ceil(len / 1.5));
+  for (let k = 1; k < steps; k++) {
+    const t = (k / steps) * Math.max(0, 1 - 1.5 / Math.max(len, 1.5));
+    if (pointInBuildingPolygons({ x: from.x + (door.x - from.x) * t, z: from.z + (door.z - from.z) * t }, building.polygons)) {
+      return true;
+    }
+  }
+  return false;
 }
