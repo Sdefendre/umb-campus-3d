@@ -125,6 +125,12 @@ describe('parseTextSchedule', () => {
     const items = parseTextSchedule(text);
     expect(items).toHaveLength(0);
   });
+
+  it('keeps TBA / online lines with hour ranges unmapped instead of routing them', () => {
+    const items = parseTextSchedule('ENGL 101 | W 10-12 | TBA');
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ buildingId: null, room: '' });
+  });
 });
 
 describe('parsePdfSchedule', () => {

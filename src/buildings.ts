@@ -191,10 +191,10 @@ export function resolveBuildingFromText(text: string): {
     }
   }
 
-  // 1b. "Library" only matches Healey Library when immediately followed by a room or floor code
-  // (never "Library Science 101").
+  // 1b. "Library" only matches Healey Library when immediately followed by a floor-level
+  // room code or 4-digit room (never "Library Science 101" or "Library 101 Intro").
   const libRoomMatch =
-    /(?:^|[^a-z0-9])library(?:\s+(?:rm|room|#)\.?)?[\s-]+((?:LL|UL|PL|G|B)[-\s]?\d{1,4}[A-Z]?|\d{1,2}-\d{2,4}[A-Z]?|\d{3,4}[A-Z]?)(?!\s*:|\s*(?:am|pm)\b|[0-9a-z-])/i.exec(
+    /(?:^|[^a-z0-9])library(?:\s+(?:rm|room|#)\.?)?[\s-]+((?:LL|UL|PL|G|B)[-\s]?\d{1,4}[A-Z]?|\d{1,2}-\d{2,4}[A-Z]?|\d{4}[A-Z]?)(?!\s*:|\s*(?:am|pm)\b|[0-9a-z-])/i.exec(
       cleaned
     );
   if (libRoomMatch) {
@@ -209,10 +209,12 @@ export function resolveBuildingFromText(text: string): {
     let rx: RegExp;
 
     if (prefix.length === 1) {
-      // Single-letter prefixes (W, M, U, Q, L) require structured floor-hyphen-room form:
-      // e.g. M-01-0408, W 02-0041, Q-3-040, L-LL-12, M01-408
+      // Single-letter prefixes (W, M, U, Q, L) require structured UMB floor-room codes:
+      // e.g. M-01-0408, W 02-0041, Q-3-040, L-LL-12, M01-408.
+      // Requiring 3-4 room digits (or a named floor like LL) prevents hour ranges like
+      // "M 9-10", "W 2-4", "W 10-12", "L 10-12", or "Sec W 01-02" from false-matching.
       rx = new RegExp(
-        `(?:^|[\\s,(;|:])${escaped}(?:[-\\s]+((?:LL|UL|PL|G|B|\\d{1,2})-\\d{2,4}[A-Z]?)|(0\\d-\\d{2,4}[A-Z]?))(?!\\s*:|\\s*(?:am|pm)\\b|[0-9a-z-])`,
+        `(?:^|[\\s,(;|:])${escaped}(?:[-\\s]+((?:LL|UL|PL|G|B)-\\d{1,4}[A-Z]?|\\d{2}-\\d{3,4}[A-Z]?)|-(\\d-\\d{3,4}[A-Z]?)|(0\\d-\\d{3,4}[A-Z]?))(?!\\s*:|\\s*(?:am|pm)\\b|[0-9a-z-])`,
         'gi'
       );
     } else if (prefix.length === 2) {
@@ -232,7 +234,7 @@ export function resolveBuildingFromText(text: string): {
 
     let m: RegExpExecArray | null;
     while ((m = rx.exec(cleaned)) !== null) {
-      const rawRoom = m[1] || m[2] || '';
+      const rawRoom = m[1] || m[2] || m[3] || '';
       if (!rawRoom) continue;
       // Defensive check: never match if immediately followed by a time pattern
       const tail = cleaned.slice(m.index + m[0].length);

@@ -12,6 +12,13 @@ describe('resolveBuildingFromText — Opus P1/P2 false-positive regressions', ()
     expect(resolveBuildingFromText('M')).toEqual({ building: null, room: '' });
     expect(resolveBuildingFromText('Q 10:00 AM')).toEqual({ building: null, room: '' });
     expect(resolveBuildingFromText('L 2:30 PM')).toEqual({ building: null, room: '' });
+    expect(resolveBuildingFromText('Office hours: M 9-10, W 2-4')).toEqual({
+      building: null,
+      room: '',
+    });
+    expect(resolveBuildingFromText('W 10-12')).toEqual({ building: null, room: '' });
+    expect(resolveBuildingFromText('L 10-12')).toEqual({ building: null, room: '' });
+    expect(resolveBuildingFromText('Sec W 01-02')).toEqual({ building: null, room: '' });
   });
 
   it('handles M/W day pattern alongside a real structured room code', () => {
@@ -26,6 +33,7 @@ describe('resolveBuildingFromText — Opus P1/P2 false-positive regressions', ()
 
   it('does NOT false-positive on broad "library", "gym", or 2-letter course codes', () => {
     expect(resolveBuildingFromText('Library Science 101')).toEqual({ building: null, room: '' });
+    expect(resolveBuildingFromText('Library 101 Intro')).toEqual({ building: null, room: '' });
     expect(resolveBuildingFromText('QA 101 Quality Assurance')).toEqual({ building: null, room: '' });
     expect(resolveBuildingFromText('CC 101 Community Colloquium')).toEqual({ building: null, room: '' });
     expect(resolveBuildingFromText('MC 201 Media Communications')).toEqual({ building: null, room: '' });

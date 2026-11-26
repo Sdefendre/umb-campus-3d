@@ -134,7 +134,7 @@ export async function parsePdfSchedule(file: File): Promise<ClassItem[]> {
   const buffer = await file.arrayBuffer();
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(buffer),
-    // Defense-in-depth alongside pdfjs-dist >= 6.2.108
+    // pdfjs-dist v6 removed the worker JS eval path; retained for API compatibility
     isEvalSupported: false,
   } as Parameters<typeof pdfjsLib.getDocument>[0]);
 
@@ -216,7 +216,28 @@ export function parseTextSchedule(rawText: string): ClassItem[] {
     const courseMatch = line.match(COURSE_CODE_RX);
     const timeMatch = line.match(TIME_RANGE_RX);
     const daysMatch = line.match(DAYS_RX);
-    const resolved = resolveBuildingFromText(line);
+    const isOnline = isOnlineOrUnassignedLocation(line);
+
+    if (isOnline && (courseMatch || pendingTitle)) {
+      let title = pendingTitle;
+      if (courseMatch) {
+        const beforeParts = line.split(/[|•·\t—–]/)[0]?.trim() ?? '';
+        title =
+          beforeParts.length >= 4 && beforeParts.length <= 56
+            ? beforeParts
+            : `${courseMatch[1]} ${courseMatch[2]}`;
+      }
+      const timeLabel = timeMatch ? timeMatch[1].trim() : pendingTime;
+      const daysLabel = daysMatch ? daysMatch[1].trim() : pendingDays;
+      pushItem(title, timeLabel, daysLabel, 'Online / Unassigned', null, null, '');
+
+      pendingTitle = '';
+      pendingTime = '';
+      pendingDays = '';
+      continue;
+    }
+
+    const resolved = isOnline ? { building: null, room: '' } : resolveBuildingFromText(line);
 
     if (resolved.building) {
       let title = '';
@@ -252,22 +273,6 @@ export function parseTextSchedule(rawText: string): ClassItem[] {
         resolved.building.canonicalName,
         resolved.room
       );
-
-      pendingTitle = '';
-      pendingTime = '';
-      pendingDays = '';
-    } else if (isOnlineOrUnassignedLocation(line) && (courseMatch || pendingTitle)) {
-      let title = pendingTitle;
-      if (courseMatch) {
-        const beforeParts = line.split(/[|•·\t—–]/)[0]?.trim() ?? '';
-        title =
-          beforeParts.length >= 4 && beforeParts.length <= 56
-            ? beforeParts
-            : `${courseMatch[1]} ${courseMatch[2]}`;
-      }
-      const timeLabel = timeMatch ? timeMatch[1].trim() : pendingTime;
-      const daysLabel = daysMatch ? daysMatch[1].trim() : pendingDays;
-      pushItem(title, timeLabel, daysLabel, 'Online / Unassigned', null, null, '');
 
       pendingTitle = '';
       pendingTime = '';
