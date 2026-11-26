@@ -8,17 +8,19 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "preview": "vite preview",
     "fetch-osm": "node scripts/fetch-osm.mjs"
   },
   "dependencies": {
     "ical.js": "^2.1.0",
-    "pdfjs-dist": "^5.3.31",
+    "pdfjs-dist": "^6.5.438",
     "three": "^0.177.0"
   },
   "devDependencies": {
     "@types/three": "^0.177.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vitest": "^4.1.12"
   }
 }

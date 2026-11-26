@@ -57,7 +57,6 @@ export class CampusScene {
   private cameraMode: CameraMode = 'chase';
   private userOverrideCamera = false;
 
-  private rafId = 0;
   private lastTime = 0;
   private elapsed = 0;
   private readonly tmpVec = new THREE.Vector3();
@@ -396,7 +395,6 @@ export class CampusScene {
         labelEl = document.createElement('button');
         labelEl.type = 'button';
         labelEl.className = 'building-label';
-        labelEl.dataset.buildingId = b.id;
         labelEl.innerHTML = `<span class="label-code">${b.shortCode}</span><span class="label-name">${b.name}</span>`;
         labelEl.addEventListener('click', () => {
           this.callbacks.onSelectBuilding?.(b.id);
@@ -745,7 +743,7 @@ export class CampusScene {
   }
 
   private animate = (now: number): void => {
-    this.rafId = requestAnimationFrame(this.animate);
+    requestAnimationFrame(this.animate);
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
     this.elapsed += dt;
@@ -854,11 +852,4 @@ export class CampusScene {
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
   };
-
-  dispose(): void {
-    cancelAnimationFrame(this.rafId);
-    window.removeEventListener('resize', this.handleResize);
-    this.controls.dispose();
-    this.renderer.dispose();
-  }
 }
