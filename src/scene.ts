@@ -423,6 +423,25 @@ export class CampusScene {
   }
 
   /**
+   * Positions the camera at a fixed viewpoint for deterministic screenshot / eval capture.
+   */
+  setFixedCamera(
+    pos: [number, number, number],
+    target: [number, number, number],
+    fov?: number
+  ): void {
+    this.userOverrideCamera = true;
+    if (typeof fov === 'number' && Number.isFinite(fov) && fov > 5 && fov < 120) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    this.camera.position.set(pos[0], pos[1], pos[2]);
+    this.controls.target.set(target[0], target[1], target[2]);
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
    * Draws a glowing FSD blue route tube + pulse markers and starts the walking avatar.
    */
   setRoute(points: Point2D[], destinationBuildingId: string | null): void {

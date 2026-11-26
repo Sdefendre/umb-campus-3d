@@ -62,5 +62,7 @@ npm run dev
 
 ## Data Attribution & License
 
-- Map & building geometry: **(c) OpenStreetMap contributors, ODbL** (fetched via Overpass API and committed statically in `public/data/umb-campus.geojson`).
+- Map & building geometry: **(c) OpenStreetMap contributors, ODbL** (fetched via OpenStreetMap API and committed statically in `public/data/umb-campus.geojson`).
+- Building height reference: **City of Boston Planning Department (BPDA) 2010 LiDAR `Boston_Buildings` FeatureServer Layer 9** (public open data) and OpenStreetMap `building:levels`.
+- Reference evaluation photographs (`eval/reference/photos/`): **Wikimedia Commons** (CC BY 4.0 and CC BY-SA 4.0 — **not** covered by the MIT license; see [`eval/reference/photos/ATTRIBUTION.md`](eval/reference/photos/ATTRIBUTION.md) for authors, source URLs, and downscale modifications).
 - Application source code: **MIT License** — see [LICENSE](LICENSE).
