@@ -1,11 +1,17 @@
 experiment	commit	score	delta	parser	routing	phoneFps	lighthousePwa	bundleGzip	realism	status	idea
 baseline	02c0328	84.53	0.00	100.00	78.33	99.88	98.20	73.31	45.51	baseline	Post-M1-fixes baseline on t3/umb-eval-harness
-exp-01	6f44ee3	88.86	+4.33	100.00	100.00	99.88	98.20	73.28	45.51	kept	Strict outdoor footway graph excluding building-crossing and covered edges
-exp-02	0281073	92.25	+3.39	100.00	100.00	99.88	96.45	73.28	69.85	kept	Calibrate building heights with City of Boston BPDA 2010 LiDAR + OSM levels
-exp-03	6b8ee9f	93.64	+1.39	100.00	100.00	99.88	96.85	86.59	69.85	kept	Dynamic-import ./schedule in main.ts to remove ical.js from initial JS bundle
+exp-01	68326ba	88.86	+4.33	100.00	100.00	99.88	98.20	73.28	45.51	kept	Strict outdoor footway graph excluding building-crossing and covered edges
+exp-02	f59707b	92.25	+3.39	100.00	100.00	99.88	96.45	73.28	69.85	kept	Calibrate building heights with City of Boston BPDA 2010 LiDAR + OSM levels
+exp-03	136fc09	93.64	+1.39	100.00	100.00	99.88	96.85	86.59	69.85	kept	Dynamic-import ./schedule in main.ts to remove ical.js from initial JS bundle
 exp-04	136fc09	93.35	-0.29	100.00	100.00	99.88	96.85	86.46	68.00	reverted	OSM coastline landmass + daylight sky without architectural building textures (flat dark silhouettes lowered edge-SSIM)
 exp-05	136fc09	93.08	-0.56	100.00	100.00	99.88	96.85	85.61	66.77	reverted	Daylight coastal harbor + brick/glass facade textures + OSM parks/roads (high-contrast window textures lowered Sobel edge-SSIM)
 exp-06	136fc09	93.33	-0.31	100.00	100.00	99.88	96.85	85.63	68.41	reverted	Fixed sky-dome clipping + coastal harbor + brick/glass textures (west-2025 rose to 0.54, but bright sidewalk ribbons + bundle +1.7KB offset gain)
 exp-07	136fc09	93.66	+0.02	100.00	100.00	99.88	96.85	86.74	69.85	reverted	Named Three.js imports + function manualChunks (saved only 0.27 KB gzip; WebGLRenderer retains core Three.js)
 exp-08	136fc09	93.64	+0.00	100.00	100.00	99.88	96.85	84.76	71.08	reverted	Textured coastal harbor, parks, roads, roofs & Harborwalk trees (photoEdgeSsim jumped 24.62->27.69, west-2025 0.56, offset by +3.3KB bundle)
-exp-09	8408bae	94.34	+0.70	100.00	100.00	99.88	100.00	88.86	69.85	kept	Replace 38KB OrbitControls with custom touch/mouse CampusControls + fix all 3 Lighthouse mobile a11y audits (A11y 91->100, bundle -4.1KB)
+exp-09	96c2dda	94.34	+0.70	100.00	100.00	99.88	100.00	88.86	69.85	kept	Replace 38KB OrbitControls with custom touch/mouse CampusControls + fix all 3 Lighthouse mobile a11y audits (A11y 91->100, bundle -4.1KB)
+exp-10	96c2dda	94.21	-0.13	100.00	100.00	99.88	100.00	87.86	69.64	reverted	Flat-shaded coastal harbor + merged context buildings + render-on-demand (flat roofs/ground lacked natural edge density vs real photos; confirmed micro-texture drives SSIM)
+exp-11	96c2dda	93.98	-0.36	100.00	100.00	99.88	99.60	87.37	68.82	reverted	High-variance noise textures + 160 trees + roof HVAC grid (noisy water dropped west-2025 from 0.56 to 0.47)
+exp-12	96c2dda	94.51	+0.17	100.00	100.00	99.88	100.00	87.82	71.69	reverted	Smooth harbor water + seamless sky horizon fog + gentle land/roof grain + merged context buildings + render-on-demand (photoEdgeSsim record 29.23, west 0.57/isc 0.34/aerial 0.11, +0.17 < +0.50 threshold)
+exp-13	96c2dda	94.47	+0.13	100.00	100.00	99.88	100.00	87.70	71.49	reverted	BPDA stepped roof tiers + organic multi-patch textures + smooth harbor (west-2025 record 0.58, +0.13 < +0.50 threshold)
+exp-14	96c2dda	94.39	+0.05	100.00	100.00	99.88	100.00	87.88	70.87	reverted	BPDA stepped roof tiers + smooth sky/water + facade grain (west-2025 0.58, isc-2025 0.33, aerial-2024 0.07, +0.05 < +0.50 threshold)
+exp-15	96c2dda	93.94	-0.40	100.00	100.00	99.88	100.00	88.25	67.59	reverted	OSM coastline + parks/pitches/parking + daylight Lambert palette + floor bands (aerial-2024 hit record 0.14, but harsh shoreline/facade contrast dropped west 0.44 / isc 0.24; triggers 6-consecutive stop rule)
