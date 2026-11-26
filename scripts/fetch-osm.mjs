@@ -400,6 +400,19 @@ async function main() {
     });
   }
 
+  // Step barriers for step-free routing: raised kerbs and anything tagged wheelchair=no
+  for (const node of nodeMap.values()) {
+    const t = node.tags;
+    if (!t || t.entrance) continue;
+    const raisedKerb = t.barrier === 'kerb' && !['lowered', 'flush', 'no'].includes(t.kerb);
+    if (!raisedKerb && t.wheelchair !== 'no') continue;
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'stepBarrier', osmId: `node/${node.id}` },
+      geometry: { type: 'Point', coordinates: [roundCoord(node.lon), roundCoord(node.lat)] },
+    });
+  }
+
   // Dorchester Bay / Columbia Point coastline (stitched OSM natural=coastline ways)
   const coastSegs = [];
   for (const way of wayMap.values()) {
@@ -525,8 +538,9 @@ async function main() {
   const sCount = features.filter((f) => f.properties.kind === 'surface').length;
   const rCount = features.filter((f) => f.properties.kind === 'roofPart').length;
   const eCount = features.filter((f) => f.properties.kind === 'entrance').length;
+  const kCount = features.filter((f) => f.properties.kind === 'stepBarrier').length;
   console.log(
-    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${rCount} roofParts, ${eCount} entrances, ${pCount} paths, ${sCount} surfaces, ${cCount} coastlines.`
+    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${rCount} roofParts, ${eCount} entrances, ${kCount} step barriers, ${pCount} paths, ${sCount} surfaces, ${cCount} coastlines.`
   );
 }
 

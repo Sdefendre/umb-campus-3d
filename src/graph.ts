@@ -7,12 +7,16 @@ interface GraphEdge {
   baseMult: number;
   /** True when the edge is covered, a corridor, or crosses inside a building footprint */
   sheltered: boolean;
+  /** True for OSM highway=steps */
+  steps: boolean;
 }
 
 interface GraphNode {
   id: number;
   point: Point2D;
   indoor: boolean;
+  /** Raised kerb or wheelchair=no node, impassable in step-free mode */
+  stepBarrier: boolean;
   edges: GraphEdge[];
 }
 
@@ -127,10 +131,10 @@ class MinHeap {
 
 export class CampusFootwayGraph {
   private readonly nodes: GraphNode[] = [];
-  private readonly outdoorComponent = new Set<number>();
-  private readonly fullComponent = new Set<number>();
+  /** Largest connected component per (outdoorOnly, stepFree) filter, built on first use */
+  private readonly components = new Map<string, Set<number>>();
 
-  constructor(paths: WalkPathInput[], buildings: BuildingRecord[] = []) {
+  constructor(paths: WalkPathInput[], buildings: BuildingRecord[] = [], stepBarriers: Point2D[] = []) {
     const bBounds: BuildingBounds[] = buildings.map((b) => {
       let minX = Infinity;
       let maxX = -Infinity;
@@ -157,14 +161,16 @@ export class CampusFootwayGraph {
     };
 
     const keyToId = new Map<string, number>();
+    // Snap coordinates within 0.25m so shared OSM nodes join reliably
+    const snapKey = (pt: Point2D) => `${Math.round(pt.x * 4)},${Math.round(pt.z * 4)}`;
+    const barrierKeys = new Set(stepBarriers.map(snapKey));
 
     const getOrCreate = (pt: Point2D): number => {
-      // Snap coordinates within 0.25m so shared OSM nodes join reliably
-      const key = `${Math.round(pt.x * 4)},${Math.round(pt.z * 4)}`;
+      const key = snapKey(pt);
       const existing = keyToId.get(key);
       if (existing !== undefined) return existing;
       const id = this.nodes.length;
-      this.nodes.push({ id, point: pt, indoor: isInsideAnyBuilding(pt), edges: [] });
+      this.nodes.push({ id, point: pt, indoor: isInsideAnyBuilding(pt), stepBarrier: barrierKeys.has(key), edges: [] });
       keyToId.set(key, id);
       return id;
     };
@@ -197,56 +203,56 @@ export class CampusFootwayGraph {
         const b = getOrCreate(rawB);
         if (a === b) continue;
 
-        this.nodes[a].edges.push({ to: b, rawDist: d, baseMult, sheltered });
-        this.nodes[b].edges.push({ to: a, rawDist: d, baseMult, sheltered });
+        const steps = path.highway === 'steps';
+        this.nodes[a].edges.push({ to: b, rawDist: d, baseMult, sheltered, steps });
+        this.nodes[b].edges.push({ to: a, rawDist: d, baseMult, sheltered, steps });
       }
     }
-
-    this.computeLargestComponents();
   }
 
-  private computeLargestComponents(): void {
-    const findLargest = (outdoorOnly: boolean): Set<number> => {
-      const visited = new Uint8Array(this.nodes.length);
-      let best: number[] = [];
+  private edgeAllowed(from: number, edge: GraphEdge, outdoorOnly: boolean, stepFree: boolean): boolean {
+    if (outdoorOnly && edge.sheltered) return false;
+    if (stepFree && (edge.steps || this.nodes[from].stepBarrier || this.nodes[edge.to].stepBarrier)) {
+      return false;
+    }
+    return true;
+  }
 
-      for (let i = 0; i < this.nodes.length; i++) {
-        if (visited[i]) continue;
-        const hasEdge = this.nodes[i].edges.some((e) => !outdoorOnly || !e.sheltered);
-        if (!hasEdge) continue;
-        const comp: number[] = [];
-        const stack = [i];
-        visited[i] = 1;
-        while (stack.length > 0) {
-          const u = stack.pop()!;
-          comp.push(u);
-          for (const e of this.nodes[u].edges) {
-            if (outdoorOnly && e.sheltered) continue;
-            if (!visited[e.to]) {
-              visited[e.to] = 1;
-              stack.push(e.to);
-            }
+  private component(outdoorOnly: boolean, stepFree: boolean): Set<number> {
+    const key = `${outdoorOnly}|${stepFree}`;
+    const cached = this.components.get(key);
+    if (cached) return cached;
+
+    const visited = new Uint8Array(this.nodes.length);
+    let best: number[] = [];
+    for (let i = 0; i < this.nodes.length; i++) {
+      if (visited[i]) continue;
+      if (!this.nodes[i].edges.some((e) => this.edgeAllowed(i, e, outdoorOnly, stepFree))) continue;
+      const comp: number[] = [];
+      const stack = [i];
+      visited[i] = 1;
+      while (stack.length > 0) {
+        const u = stack.pop()!;
+        comp.push(u);
+        for (const e of this.nodes[u].edges) {
+          if (!visited[e.to] && this.edgeAllowed(u, e, outdoorOnly, stepFree)) {
+            visited[e.to] = 1;
+            stack.push(e.to);
           }
         }
-        if (comp.length > best.length) best = comp;
       }
-      return new Set(best);
-    };
-
-    const outdoor = findLargest(true);
-    for (const id of outdoor) this.outdoorComponent.add(id);
-
-    const full = findLargest(false);
-    for (const id of full) this.fullComponent.add(id);
+      if (comp.length > best.length) best = comp;
+    }
+    const set = new Set(best);
+    this.components.set(key, set);
+    return set;
   }
 
-  findNearestNode(target: Point2D, preferOutdoor = true): number {
+  findNearestNode(target: Point2D, preferOutdoor = true, stepFree = false): number {
+    const outdoor = preferOutdoor ? this.component(true, stepFree) : null;
+    const full = this.component(false, stepFree);
     const primaryPool =
-      preferOutdoor && this.outdoorComponent.size > 0
-        ? this.outdoorComponent
-        : this.fullComponent.size > 0
-          ? this.fullComponent
-          : this.nodes.map((n) => n.id);
+      outdoor && outdoor.size > 0 ? outdoor : full.size > 0 ? full : this.nodes.map((n) => n.id);
 
     let bestId = -1;
     let bestDist = Infinity;
@@ -262,18 +268,30 @@ export class CampusFootwayGraph {
 
   /**
    * Routes to the building's nearest reachable door. Falls back to the centroid when OSM
-   * maps no usable door, so every building stays routable.
+   * maps no usable door, so every building stays routable. Step-free routes skip doors
+   * tagged wheelchair=no and use only wheelchair=yes doors when the building has any.
    */
-  findRouteToBuilding(start: Point2D, building: BuildingRecord, mode: RouteMode = 'outdoor'): BuildingRoute | null {
+  findRouteToBuilding(
+    start: Point2D,
+    building: BuildingRecord,
+    mode: RouteMode = 'outdoor',
+    stepFree = false
+  ): BuildingRoute | null {
+    let doors = building.entrances ?? [];
+    if (stepFree) {
+      doors = doors.filter((d) => d.wheelchair !== 'no');
+      const accessible = doors.filter((d) => d.wheelchair === 'yes');
+      if (accessible.length > 0) doors = accessible;
+    }
     let best: BuildingRoute | null = null;
-    for (const door of building.entrances ?? []) {
-      const res = this.findRoute(start, door, mode);
+    for (const door of doors) {
+      const res = this.findRoute(start, door, mode, stepFree);
       if (!res) continue;
       const last = res.points[res.points.length - 1];
       // Catwalk routes may already arrive inside the building through a corridor
       const arrivedInside = Boolean(last.indoor) && pointInBuildingPolygons(last, building.polygons);
       const leg = arrivedInside ? 0 : dist2D(last, door);
-      if (leg > MAX_DOOR_LEG_M || (!arrivedInside && legEntersBuilding(last, door, building))) continue;
+      if (leg > MAX_DOOR_LEG_M || (leg > 0.5 && legEntersBuilding(last, door, building))) continue;
       const points = leg > 0.5 ? [...res.points, { x: door.x, z: door.z, indoor: false }] : res.points;
       const distanceMeters = res.distanceMeters + leg;
       if (!best || distanceMeters < best.distanceMeters) {
@@ -281,7 +299,7 @@ export class CampusFootwayGraph {
       }
     }
     if (best) return best;
-    const res = this.findRoute(start, building.centroid, mode);
+    const res = this.findRoute(start, building.centroid, mode, stepFree);
     return res ? { ...res, endsAtDoor: false } : null;
   }
 
@@ -289,15 +307,17 @@ export class CampusFootwayGraph {
    * Computes shortest walking path using A* over the OSM footway graph.
    * - mode='outdoor' (default): strictly uses outdoor walkways that never cross building footprints.
    * - mode='catwalk': enables and favors UMB's covered catwalk & indoor skybridge shortcuts.
+   * - stepFree: skips stairs (highway=steps) and raised-kerb / wheelchair=no nodes.
    */
   findRoute(
     start: Point2D,
     goal: Point2D,
-    mode: RouteMode = 'outdoor'
+    mode: RouteMode = 'outdoor',
+    stepFree = false
   ): { points: RoutePoint[]; distanceMeters: number; usesCatwalks: boolean } | null {
     const outdoorOnly = mode === 'outdoor';
-    const startId = this.findNearestNode(start, outdoorOnly);
-    const goalId = this.findNearestNode(goal, outdoorOnly);
+    const startId = this.findNearestNode(start, outdoorOnly, stepFree);
+    const goalId = this.findNearestNode(goal, outdoorOnly, stepFree);
     if (startId < 0 || goalId < 0) return null;
 
     const startToFirst = dist2D(start, this.nodes[startId].point);
@@ -339,7 +359,7 @@ export class CampusFootwayGraph {
       closed[u] = 1;
 
       for (const edge of this.nodes[u].edges) {
-        if (outdoorOnly && edge.sheltered) continue;
+        if (!this.edgeAllowed(u, edge, outdoorOnly, stepFree)) continue;
         const v = edge.to;
         if (closed[v]) continue;
 

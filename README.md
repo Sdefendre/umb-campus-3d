@@ -12,6 +12,7 @@ Load your class schedule (`.ics`, `.pdf`, or pasted text) or tap **Try demo sche
   <img src="docs/screenshots/mobile-390x844.png" alt="Mobile 390x844 FSD View" width="240" />
   <img src="docs/screenshots/desktop-topdown-1280x800.png" alt="Desktop Top-Down View" width="380" />
   <img src="docs/screenshots/desktop-catwalks-1280x800.png" alt="Desktop Catwalk X-Ray Mode" width="380" />
+  <img src="docs/screenshots/stepfree-mobile-390x844.png" alt="Mobile step-free route" width="240" />
 </p>
 
 ## Features
@@ -32,6 +33,7 @@ Load your class schedule (`.ics`, `.pdf`, or pasted text) or tap **Try demo sche
 - **Door-to-Door Routes & Next-Class Countdown (M3):**
   - Routes end at a real building door. The app uses the 61 OSM `entrance=*` nodes on campus, matches each to the building outline it sits on, and picks the nearest reachable door. It falls back to the nearest footway when OSM maps no usable door (Clark Athletic Center today, and Wheatley/Healey in Outdoor mode because their doors open onto the plaza podium deck).
   - A **Next class** card finds your next in-person meeting from the schedule's days and times. It shows **Leave in N min** using the walk time from your chosen start or live GPS, and it updates every 30 s. Loading a schedule opens the route to that class. Tap the card to route to it again.
+- **Step-Free Routing:** the wheelchair toggle next to Outdoor/Catwalks avoids the 23 mapped stair ways (`highway=steps`) and the 11 mapped raised kerbs or `wheelchair=no` points. It skips doors tagged `wheelchair=no` and uses `wheelchair=yes` doors when a building has one (today that's Healey's elevator entrance). Step-free routing only knows what OSM maps. Untagged curbs, broken elevators and slopes are invisible to it, so treat it as guidance, not a guarantee.
 - **Phone-First Installable PWA:** Designed for `390x844` mobile viewports with `viewport-fit=cover`, `env(safe-area-inset-*)` padding, web app manifest, icons, and an offline-capable service worker, scaling cleanly to desktop screens.
 
 ## Privacy

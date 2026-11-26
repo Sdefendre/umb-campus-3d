@@ -92,9 +92,9 @@ describe('CampusFootwayGraph.findRouteToBuilding', () => {
   it('ends at the nearest reachable door and counts the final leg', () => {
     const graph = new CampusFootwayGraph(paths, [building]);
     assignEntrances([building], [
-      { x: 10, z: 0, main: true, wheelchair: false },
+      { x: 10, z: 0, main: true },
       // Back door with no path anywhere near it
-      { x: 30, z: 0, main: false, wheelchair: false },
+      { x: 30, z: 0, main: false },
     ]);
     const res = graph.findRouteToBuilding({ x: 0, z: -100 }, building)!;
     expect(res.endsAtDoor).toBe(true);
@@ -112,8 +112,63 @@ describe('CampusFootwayGraph.findRouteToBuilding', () => {
 
   it('prefers the named building over a podium sharing the same outline', () => {
     const podium: BuildingRecord = { ...building, id: 'podium', isMajor: false, entrances: undefined };
-    assignEntrances([podium, building], [{ x: 10, z: 0, main: false, wheelchair: false }]);
+    assignEntrances([podium, building], [{ x: 10, z: 0, main: false }]);
     expect(building.entrances).toHaveLength(1);
     expect(podium.entrances).toHaveLength(0);
+  });
+});
+
+describe('step-free routing', () => {
+  // Short stair shortcut (A→B direct, 50 m) vs. a 140 m ramp detour
+  const paths = [
+    { highway: 'steps', points: [{ x: 0, z: 0 }, { x: 50, z: 0 }] },
+    { highway: 'footway', points: [{ x: 0, z: 0 }, { x: 25, z: 45 }, { x: 50, z: 0 }] },
+  ];
+
+  it('takes the stairs by default and the ramp detour when step-free', () => {
+    const graph = new CampusFootwayGraph(paths);
+    expect(graph.findRoute({ x: 0, z: 0 }, { x: 50, z: 0 })!.distanceMeters).toBeCloseTo(50, 5);
+    const ramp = graph.findRoute({ x: 0, z: 0 }, { x: 50, z: 0 }, 'outdoor', true)!;
+    expect(ramp.distanceMeters).toBeCloseTo(2 * Math.hypot(25, 45), 5);
+    expect(ramp.points).toHaveLength(3);
+  });
+
+  it('routes around a raised kerb node', () => {
+    const graph = new CampusFootwayGraph(
+      [
+        { highway: 'footway', points: [{ x: 0, z: 0 }, { x: 25, z: 0 }, { x: 50, z: 0 }] },
+        { highway: 'footway', points: [{ x: 0, z: 0 }, { x: 25, z: 30 }, { x: 50, z: 0 }] },
+      ],
+      [],
+      [{ x: 25, z: 0 }]
+    );
+    expect(graph.findRoute({ x: 0, z: 0 }, { x: 50, z: 0 })!.distanceMeters).toBeCloseTo(50, 5);
+    const res = graph.findRoute({ x: 0, z: 0 }, { x: 50, z: 0 }, 'outdoor', true)!;
+    expect(res.points.map((p) => p.z)).toEqual([0, 30, 0]);
+  });
+
+  it('uses only wheelchair=yes doors when the building has one, and never wheelchair=no doors', () => {
+    const building: BuildingRecord = {
+      id: 'b',
+      osmId: 'way/1',
+      name: 'B',
+      shortCode: 'B',
+      isMajor: true,
+      height: 10,
+      centroid: { x: 20, z: 0 },
+      polygons: [[[{ x: 10, z: -10 }, { x: 30, z: -10 }, { x: 30, z: 10 }, { x: 10, z: 10 }]]],
+    };
+    const graph = new CampusFootwayGraph([
+      { highway: 'footway', points: [{ x: 0, z: -40 }, { x: 0, z: 0 }, { x: 0, z: 40 }] },
+      { highway: 'footway', points: [{ x: 0, z: -40 }, { x: 20, z: -20 }, { x: 40, z: -20 }, { x: 40, z: 20 }] },
+    ], [building]);
+    assignEntrances([building], [
+      { x: 10, z: 0, main: true, wheelchair: 'no' },
+      { x: 20, z: -10, main: false },
+      { x: 30, z: 5, main: false, wheelchair: 'yes' },
+    ]);
+    const end = (r: ReturnType<typeof graph.findRouteToBuilding>) => r!.points[r!.points.length - 1];
+    expect(end(graph.findRouteToBuilding({ x: 0, z: 0 }, building))).toMatchObject({ x: 10, z: 0 });
+    expect(end(graph.findRouteToBuilding({ x: 0, z: 0 }, building, 'outdoor', true))).toMatchObject({ x: 30, z: 5 });
   });
 });

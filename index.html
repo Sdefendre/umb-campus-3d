@@ -64,6 +64,7 @@
             <div class="route-dest-row">
               <div class="route-dest" id="route-dest-name">—</div>
               <span id="route-catwalk-pill" class="catwalk-pill is-hidden">catwalks</span>
+              <span id="route-stepfree-pill" class="catwalk-pill stepfree-pill is-hidden">step-free</span>
             </div>
             <div class="route-stats">
               <span id="route-eta">— min</span>
@@ -142,6 +143,21 @@
                 Catwalks
               </button>
             </div>
+            <button
+              id="btn-step-free"
+              type="button"
+              class="icon-btn step-free-btn"
+              aria-pressed="false"
+              aria-label="Step-free route (avoid stairs and raised kerbs)"
+              title="Step-free: avoid stairs and raised kerbs"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="4" r="1.6" fill="currentColor" stroke="none" />
+                <path d="M11 7v6h5l2.5 5" />
+                <path d="M11 10h4" />
+                <path d="M8.2 10.6A5.5 5.5 0 1 0 15.6 18" />
+              </svg>
+            </button>
             <button
               id="btn-chain-next"
               type="button"

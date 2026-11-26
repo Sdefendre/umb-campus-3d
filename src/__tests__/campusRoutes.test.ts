@@ -13,6 +13,7 @@ const projector = new LocalProjector(data.metadata.origin);
 const buildings: BuildingRecord[] = [];
 const paths: { points: Point2D[]; highway: string; covered?: boolean }[] = [];
 const doors: EntranceRecord[] = [];
+const stepBarriers: Point2D[] = [];
 for (const f of data.features) {
   const p = f.properties;
   if (p.kind === 'building' && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')) {
@@ -31,13 +32,15 @@ for (const f of data.features) {
     });
   } else if (p.kind === 'path' && f.geometry.type === 'LineString') {
     paths.push({ points: projector.projectRing(f.geometry.coordinates), highway: p.highway, covered: p.covered });
+  } else if (p.kind === 'stepBarrier' && f.geometry.type === 'Point') {
+    stepBarriers.push(projector.project(f.geometry.coordinates[0], f.geometry.coordinates[1]));
   } else if (p.kind === 'entrance' && f.geometry.type === 'Point') {
     const [lon, lat] = f.geometry.coordinates;
-    doors.push({ ...projector.project(lon, lat), main: p.entrance === 'main', wheelchair: p.wheelchair === 'yes' });
+    doors.push({ ...projector.project(lon, lat), main: p.entrance === 'main', wheelchair: p.wheelchair });
   }
 }
 assignEntrances(buildings, doors);
-const graph = new CampusFootwayGraph(paths, buildings);
+const graph = new CampusFootwayGraph(paths, buildings, stepBarriers);
 const majors = [...new Map(buildings.filter((b) => b.isMajor).map((b) => [b.id, b])).values()];
 
 describe('campus routes on committed OSM data', () => {
@@ -74,4 +77,33 @@ describe('campus routes on committed OSM data', () => {
       });
     }
   }
+
+  it('finds step-free routes that are never shorter than the unrestricted ones', () => {
+    // Raw step segments, to check no step-free route walks along one
+    const stepSegs = paths
+      .filter((p) => p.highway === 'steps')
+      .flatMap((p) => p.points.slice(1).map((b, i) => [p.points[i], b] as const));
+    const onStep = (a: Point2D, b: Point2D) =>
+      stepSegs.some(([s, t]) => (dist2D(a, s) < 0.3 && dist2D(b, t) < 0.3) || (dist2D(a, t) < 0.3 && dist2D(b, s) < 0.3));
+    expect(stepSegs.length).toBeGreaterThan(0);
+    let found = 0;
+    for (const sp of START_POINTS) {
+      const start = projector.project(sp.lonLat.lon, sp.lonLat.lat);
+      for (const mode of ['outdoor', 'catwalk'] as const) {
+        for (const b of majors) {
+          const free = graph.findRouteToBuilding(start, b, mode, true);
+          const any = graph.findRouteToBuilding(start, b, mode)!;
+          if (!free) continue;
+          found++;
+          // Door choice can differ, so compare against the unrestricted route with a small slack
+          expect(free.distanceMeters, `${sp.id} ${mode} ${b.id}`).toBeGreaterThanOrEqual(any.distanceMeters - 1);
+          for (let i = 1; i < free.points.length; i++) {
+            expect(onStep(free.points[i - 1], free.points[i]), `${sp.id} ${mode} ${b.id} seg ${i}`).toBe(false);
+          }
+        }
+      }
+    }
+    // 3 starts x 2 modes x 8 buildings
+    expect(found).toBeGreaterThanOrEqual(44);
+  });
 });

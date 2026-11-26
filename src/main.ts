@@ -41,6 +41,7 @@ const btnGpsEl = document.getElementById('btn-gps')!;
 const btnRouteOutdoorEl = document.getElementById('btn-route-outdoor')!;
 const btnRouteCatwalkEl = document.getElementById('btn-route-catwalk')!;
 const btnChainNextEl = document.getElementById('btn-chain-next')!;
+const btnStepFreeEl = document.getElementById('btn-step-free')!;
 
 const intakeViewEl = document.getElementById('intake-view')!;
 const scheduleViewEl = document.getElementById('schedule-view')!;
@@ -72,6 +73,7 @@ const routeEtaEl = document.getElementById('route-eta')!;
 const routeDistEl = document.getElementById('route-dist')!;
 const routeOriginLabelEl = document.getElementById('route-origin-label')!;
 const routeCatwalkPillEl = document.getElementById('route-catwalk-pill')!;
+const routeStepFreePillEl = document.getElementById('route-stepfree-pill')!;
 const routeProgressBarEl = document.getElementById('route-progress-bar')!;
 const btnPlayPauseEl = document.getElementById('btn-play-pause')!;
 const iconPauseEl = document.getElementById('icon-pause')!;
@@ -98,6 +100,7 @@ let selectedClassId: string | null = null;
 let selectedBuildingId: string | null = null;
 let startPointId = START_POINTS[0].id;
 let routeMode: RouteMode = 'outdoor';
+let stepFree = false;
 let gpsLonLat: LonLat | null = null;
 
 const scene = new CampusScene(viewportEl, labelLayerEl, {
@@ -186,6 +189,13 @@ function setRouteMode(mode: RouteMode): void {
   btnRouteOutdoorEl.classList.toggle('is-active', mode === 'outdoor');
   btnRouteCatwalkEl.classList.toggle('is-active', mode === 'catwalk');
   btnRouteCatwalkEl.classList.toggle('is-catwalk', mode === 'catwalk');
+  recomputeActiveRoute();
+}
+
+function toggleStepFree(): void {
+  stepFree = !stepFree;
+  btnStepFreeEl.classList.toggle('is-active', stepFree);
+  btnStepFreeEl.setAttribute('aria-pressed', String(stepFree));
   recomputeActiveRoute();
 }
 
@@ -288,9 +298,13 @@ function routeToBuilding(buildingId: string, customLabel?: string): void {
   const origin = resolveStartPoint(buildingId);
   if (!origin) return;
 
-  const res = graph.findRouteToBuilding(origin.point, building, routeMode);
+  const res = graph.findRouteToBuilding(origin.point, building, routeMode, stepFree);
   if (!res) {
-    showError(`Could not compute a footway route to ${building.name}.`);
+    showError(
+      stepFree
+        ? `No step-free route to ${building.name} in the mapped footways. Try Catwalks or turn off Step-free.`
+        : `Could not compute a footway route to ${building.name}.`
+    );
     return;
   }
 
@@ -302,6 +316,7 @@ function routeToBuilding(buildingId: string, customLabel?: string): void {
   routeDistEl.textContent = `${Math.round(res.distanceMeters)} m`;
   routeOriginLabelEl.textContent = `from ${origin.shortLabel}`;
   routeCatwalkPillEl.classList.toggle('is-hidden', !res.usesCatwalks);
+  routeStepFreePillEl.classList.toggle('is-hidden', !stepFree);
   routeHudEl.classList.remove('is-hidden');
   renderNextClass();
 }
@@ -312,7 +327,7 @@ function renderNextClass(): void {
   const next = findNextClass(classes, now);
   const building = next?.item.buildingId ? majorBuildingsMap.get(next.item.buildingId) : null;
   const origin = building ? resolveStartPoint(building.id) : null;
-  const route = building && origin && graph ? graph.findRouteToBuilding(origin.point, building, routeMode) : null;
+  const route = building && origin && graph ? graph.findRouteToBuilding(origin.point, building, routeMode, stepFree) : null;
   if (!next || !building || !origin || !route) {
     nextCardEl.classList.add('is-hidden');
     return;
@@ -495,6 +510,7 @@ async function loadCampusData(): Promise<void> {
   const surfaces: SurfaceRecord[] = [];
   const coastlines: Point2D[][] = [];
   const doors: EntranceRecord[] = [];
+  const stepBarriers: Point2D[] = [];
 
   for (const feat of data.features) {
     if (feat.properties.kind === 'building') {
@@ -564,8 +580,10 @@ async function loadCampusData(): Promise<void> {
       doors.push({
         ...projector.project(lon, lat),
         main: feat.properties.entrance === 'main',
-        wheelchair: feat.properties.wheelchair === 'yes',
+        wheelchair: feat.properties.wheelchair,
       });
+    } else if (feat.properties.kind === 'stepBarrier' && feat.geometry.type === 'Point') {
+      stepBarriers.push(projector.project(feat.geometry.coordinates[0], feat.geometry.coordinates[1]));
     } else if (feat.properties.kind === 'coastline' && feat.geometry.type === 'LineString') {
       const pts = projector.projectRing(feat.geometry.coordinates);
       if (pts.length >= 2) {
@@ -575,7 +593,7 @@ async function loadCampusData(): Promise<void> {
   }
 
   assignEntrances(buildings, doors);
-  graph = new CampusFootwayGraph(paths, buildings);
+  graph = new CampusFootwayGraph(paths, buildings, stepBarriers);
   scene.loadCampus({ buildings, roofParts, paths, roads, surfaces, coastlines });
 
   const params = new URLSearchParams(window.location.search);
@@ -674,6 +692,7 @@ btnGpsEl.addEventListener('click', () => requestLiveGps());
 btnRouteOutdoorEl.addEventListener('click', () => setRouteMode('outdoor'));
 btnRouteCatwalkEl.addEventListener('click', () => setRouteMode('catwalk'));
 btnChainNextEl.addEventListener('click', () => stepToNextClass());
+btnStepFreeEl.addEventListener('click', toggleStepFree);
 
 btnCamChaseEl.addEventListener('click', () => setCameraMode('chase'));
 btnCamTopEl.addEventListener('click', () => setCameraMode('topdown'));

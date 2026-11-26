@@ -72,6 +72,11 @@ export interface EntranceProperties {
   wheelchair?: string;
 }
 
+export interface StepBarrierProperties {
+  kind: 'stepBarrier';
+  osmId: string;
+}
+
 export interface CoastlineProperties {
   kind: 'coastline';
   osmId: string;
@@ -112,6 +117,11 @@ export type CampusFeature =
     }
   | {
       type: 'Feature';
+      properties: StepBarrierProperties;
+      geometry: { type: 'Point'; coordinates: number[] };
+    }
+  | {
+      type: 'Feature';
       properties: CoastlineProperties;
       geometry: { type: 'LineString'; coordinates: number[][] };
     };
@@ -133,7 +143,8 @@ export interface BuildingRecord {
 
 export interface EntranceRecord extends Point2D {
   main: boolean;
-  wheelchair: boolean;
+  /** OSM wheelchair=* value on the door: yes, limited, no, or undefined when untagged */
+  wheelchair?: string;
 }
 
 export interface RoofPartRecord {

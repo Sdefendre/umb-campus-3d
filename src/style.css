@@ -461,6 +461,31 @@ body,
   justify-content: space-between;
 }
 
+.step-free-btn {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.step-free-btn.is-active {
+  border-color: var(--accent-bright);
+  background: rgba(46, 164, 255, 0.24);
+  color: var(--accent-bright);
+  box-shadow: 0 0 12px var(--accent-glow);
+}
+
+.step-free-btn:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
+.stepfree-pill {
+  background: rgba(46, 164, 255, 0.16);
+  border-color: rgba(108, 228, 255, 0.42);
+  color: var(--accent-bright);
+}
+
 .segmented-sm {
   padding: 2px;
 }
