@@ -6,6 +6,10 @@ Load your class schedule (`.ics`, `.pdf`, or pasted text) or tap **Try demo sche
 
 **Live App:** [https://sdefendre.github.io/umb-campus-3d/](https://sdefendre.github.io/umb-campus-3d/)
 
+<p align="center">
+  <img src="docs/screenshots/demo.gif" alt="Demo: loading the demo schedule, following the route to McCormack Hall, switching to top-down, then stepping to the next class" width="280" />
+</p>
+
 ![Desktop FSD Chase View](docs/screenshots/desktop-1280x800.png)
 
 <p align="center">
@@ -35,6 +39,16 @@ Load your class schedule (`.ics`, `.pdf`, or pasted text) or tap **Try demo sche
   - A **Next class** card finds your next in-person meeting from the schedule's days and times. It shows **Leave in N min** using the walk time from your chosen start or live GPS, and it updates every 30 s. Loading a schedule opens the route to that class. Tap the card to route to it again.
 - **Step-Free Routing:** the wheelchair toggle next to Outdoor/Catwalks avoids the 23 mapped stair ways (`highway=steps`) and the 11 mapped raised kerbs or `wheelchair=no` points. It skips doors tagged `wheelchair=no` and uses `wheelchair=yes` doors when a building has one (today that's Healey's elevator entrance). Step-free routing only knows what OSM maps. Untagged curbs, broken elevators and slopes are invisible to it, so treat it as guidance, not a guarantee.
 - **Phone-First Installable PWA:** Designed for `390x844` mobile viewports with `viewport-fit=cover`, `env(safe-area-inset-*)` padding, web app manifest, icons, and an offline-capable service worker, scaling cleanly to desktop screens.
+
+## How It Works
+
+1. **Campus data, fetched once.** `scripts/fetch-osm.mjs` downloads the campus bounding box from the OpenStreetMap API (buildings, footways, doors, kerbs, coastline, lawns) and joins in City of Boston LiDAR roof heights. It writes one static file, `public/data/umb-campus.geojson`, which is committed to the repo. The app never calls a map API at runtime.
+2. **Lat/lon to meters.** A local tangent-plane projection (`src/geo.ts`) turns coordinates into meters around a campus origin. Across a 2 km campus the error is under 10 cm.
+3. **Walking graph.** OSM footways become a weighted graph (`src/graph.ts`). Segments that cross a building footprint are marked sheltered, which is how the Outdoor and Catwalks modes differ. Stairs and raised kerbs are flagged for step-free mode.
+4. **Door-to-door A\*.** Each OSM door is attached to the building outline it sits on. A route runs A\* to every usable door and keeps the shortest. When a building has no reachable door, the route ends at the footway closest to the building's center instead.
+5. **Schedules stay in the tab.** `.ics` files go through `ical.js`, PDFs through a bundled `pdfjs-dist` worker, and pasted text through regular expressions. An alias table maps room codes like `M-01-0408` or `ISC 2-2003` to buildings. Days and start times drive the **Next class** countdown (`src/nextClass.ts`).
+6. **Rendering.** three.js extrudes the footprints with procedural canvas facades and edge outlines, draws the route as layered glowing tubes, and moves a low-poly avatar along it with a damped chase camera.
+7. **Checked on every change.** `npm run eval` loads the built app in headless Chrome. It uploads `.ics`, `.pdf` and pasted fixtures containing sentinel strings, then fails if any request leaves the origin or any sentinel appears in storage. It also scores parsing, route correctness against an independent Dijkstra, phone FPS, Lighthouse and bundle size.
 
 ## Privacy
 
@@ -70,7 +84,9 @@ npm run dev
 - `npm run typecheck` — Run `tsc --noEmit`
 - `npm run build` — Typecheck and build static production bundle into `dist/`
 - `npm run preview` — Preview the production build locally
-- `npm run fetch-osm` — Regenerate `public/data/umb-campus.geojson` from OpenStreetMap via the Overpass API
+- `npm test` — Run the Vitest unit tests (including route checks on the committed campus data)
+- `npm run eval` — Full scored evaluation with the privacy audit (needs Google Chrome installed locally)
+- `npm run fetch-osm` — Regenerate `public/data/umb-campus.geojson` from the OpenStreetMap API and City of Boston open data
 
 ## Data Attribution & License
 
