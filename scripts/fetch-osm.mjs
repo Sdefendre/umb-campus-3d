@@ -235,6 +235,25 @@ function stitchPolylines(segments) {
   return chains;
 }
 
+const BPDA_ROOFPRINTS_URL =
+  'https://gis.bostonplans.org/hosting/rest/services/Boston_Building_Roofprints/FeatureServer/15/query';
+
+function polygonAreaMeters2(ring) {
+  let area = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const x1 = ring[j][0] * 82200;
+    const y1 = ring[j][1] * 111100;
+    const x2 = ring[i][0] * 82200;
+    const y2 = ring[i][1] * 111100;
+    area += x1 * y2 - x2 * y1;
+  }
+  return Math.abs(area) * 0.5;
+}
+
+function roundRingCoords(ring) {
+  return ring.map(([lon, lat]) => [roundCoord(lon), roundCoord(lat)]);
+}
+
 function nodesToCoords(nodeIds, nodeMap) {
   const coords = [];
   for (const id of nodeIds) {
@@ -250,7 +269,7 @@ async function main() {
   const osmUrl = `https://api.openstreetmap.org/api/0.6/map?bbox=${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}`;
   const osm = curlJson(osmUrl);
 
-  console.log('Fetching City of Boston BPDA LiDAR building heights...');
+  console.log('Fetching City of Boston BPDA LiDAR building heights & LoD2 roofprints...');
   const bpdaUrl =
     `https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9/query` +
     `?where=1%3D1&geometry=${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}` +
@@ -258,6 +277,18 @@ async function main() {
     `&outFields=OBJECTID,BLDG_HGT_2010,Added,Shape__Area&outSR=4326&f=geojson`;
   const bpda = curlJson(bpdaUrl);
   const bpdaFeatures = bpda.features || [];
+
+  let roofprintFeatures = [];
+  try {
+    const roofUrl =
+      `${BPDA_ROOFPRINTS_URL}?where=Status%3D%27Existing%27` +
+      `&geometry=${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}` +
+      `&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects` +
+      `&outFields=OBJECTID,BLD_ID,BLD_PART_ID,Bld_Height_Ft,Shape__Area&outSR=4326&f=geojson`;
+    roofprintFeatures = curlJson(roofUrl).features || [];
+  } catch (err) {
+    console.warn('BPDA Roofprints fetch skipped:', err.message);
+  }
 
   const nodeMap = new Map();
   const wayMap = new Map();
@@ -372,11 +403,98 @@ async function main() {
     });
   });
 
+  // Campus terrain surfaces (lawns/parks, athletic pitches/courts, surface parking lots)
+  for (const way of wayMap.values()) {
+    const tags = way.tags || {};
+    if (tags.building) continue;
+    if (!Array.isArray(way.nodes) || way.nodes.length < 4) continue;
+    if (way.nodes[0] !== way.nodes[way.nodes.length - 1]) continue;
+
+    let surfaceType = null;
+    if (tags.leisure === 'pitch') surfaceType = 'pitch';
+    else if (tags.amenity === 'parking') surfaceType = 'parking';
+    else if (
+      tags.landuse === 'grass' ||
+      tags.leisure === 'park' ||
+      tags.landuse === 'recreation_ground' ||
+      tags.natural === 'scrub'
+    ) {
+      surfaceType = 'green';
+    }
+    if (!surfaceType) continue;
+
+    const ring = nodesToCoords(way.nodes, nodeMap);
+    if (!ring || ring.length < 4) continue;
+    const minArea = surfaceType === 'pitch' ? 60 : 180;
+    if (polygonAreaMeters2(ring) < minArea) continue;
+
+    features.push({
+      type: 'Feature',
+      properties: {
+        kind: 'surface',
+        osmId: `way/${way.id}`,
+        surfaceType,
+        sport: tags.sport || undefined,
+      },
+      geometry: { type: 'Polygon', coordinates: [ring] },
+    });
+  }
+
+  // Primary vehicle roads outside walkable set (Morrissey Blvd / ramps) for road network visual
+  const ROAD_HIGHWAYS = new Set(['primary', 'primary_link', 'secondary', 'tertiary', 'unclassified', 'residential']);
+  for (const way of wayMap.values()) {
+    const tags = way.tags || {};
+    if (!tags.highway || !ROAD_HIGHWAYS.has(tags.highway)) continue;
+    if (!Array.isArray(way.nodes) || way.nodes.length < 2) continue;
+    const coords = nodesToCoords(way.nodes, nodeMap);
+    if (!coords || coords.length < 2) continue;
+    features.push({
+      type: 'Feature',
+      properties: { kind: 'road', osmId: `road/${way.id}`, highway: tags.highway },
+      geometry: { type: 'LineString', coordinates: coords },
+    });
+  }
+
+  // BPDA LoD2 taller stepped roof tiers & penthouses for major/named buildings
+  const namedBuildings = features.filter((f) => f.properties.kind === 'building' && f.properties.name);
+  for (const b of namedBuildings) {
+    const baseH = b.properties.height;
+    for (const rf of roofprintFeatures) {
+      const hFt = Number(rf.properties?.Bld_Height_Ft);
+      if (!Number.isFinite(hFt)) continue;
+      const hM = Math.round(hFt * FT_TO_M * 10) / 10;
+      if (hM <= baseH + 1.8 || hM > 72) continue;
+      const r0 =
+        rf.geometry?.type === 'Polygon'
+          ? rf.geometry.coordinates[0]
+          : rf.geometry?.type === 'MultiPolygon'
+            ? rf.geometry.coordinates[0]?.[0]
+            : null;
+      if (!r0 || r0.length < 4) continue;
+      const c = ringCentroid(r0);
+      if (!inGeom(c, b.geometry)) continue;
+      features.push({
+        type: 'Feature',
+        properties: {
+          kind: 'roofPart',
+          osmId: `bpda-roof/${rf.properties.OBJECTID}`,
+          parentName: b.properties.name,
+          baseHeight: baseH,
+          height: hM,
+        },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [roundRingCoords(r0)],
+        },
+      });
+    }
+  }
+
   const geojson = {
     type: 'FeatureCollection',
     metadata: {
-      attribution: '(c) OpenStreetMap contributors, ODbL; BPDA Boston_Buildings LiDAR',
-      source: 'OpenStreetMap v0.6 API + City of Boston BPDA Boston_Buildings FeatureServer Layer 9',
+      attribution: '(c) OpenStreetMap contributors, ODbL; BPDA Boston_Buildings & Roofprints LiDAR',
+      source: 'OpenStreetMap v0.6 API + City of Boston BPDA Open Data',
       fetchedAt: new Date().toISOString(),
       bbox: BBOX,
       origin: ORIGIN,
@@ -390,8 +508,10 @@ async function main() {
   const bCount = features.filter((f) => f.properties.kind === 'building').length;
   const pCount = features.filter((f) => f.properties.kind === 'path').length;
   const cCount = features.filter((f) => f.properties.kind === 'coastline').length;
+  const sCount = features.filter((f) => f.properties.kind === 'surface').length;
+  const rCount = features.filter((f) => f.properties.kind === 'roofPart').length;
   console.log(
-    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${pCount} paths, ${cCount} coastline chains.`
+    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${rCount} roofParts, ${pCount} paths, ${sCount} surfaces, ${cCount} coastlines.`
   );
 }
 

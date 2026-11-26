@@ -16,7 +16,10 @@ Load your class schedule (`.ics`, `.pdf`, or pasted text) or tap **Try demo sche
 
 ## Features
 
-- **Dark FSD-Style 3D Campus + Dorchester Bay Coastline:** Extruded building footprints from OpenStreetMap enriched with **City of Boston (BPDA) LiDAR** heights, Dorchester Bay shoreline geometry, luminous wireframe edges, dual-scale ground grid, subtle footway network, and clickable rooftop labels for all 8 major UMass Boston buildings.
+- **Dark FSD-Style 3D Campus (M2 Realism):**
+  - Extruded OpenStreetMap building footprints enriched with **City of Boston (BPDA) LiDAR** heights and **LoD2 stepped roof tiers/penthouses** (`Boston_Building_Roofprints`), plus Healey Library's rooftop observatory dome and ISC's faceted glass atrium.
+  - Zero-network procedural world-scale architectural facade textures (glass curtain-wall vs. masonry ribbon windows aligned to real story heights) and rooftop grids.
+  - True **Columbia Point peninsula landmass** surrounded by **Dorchester Bay** water, glowing Harborwalk shoreline, campus lawns, Monan Park athletic fields & courts, paved road ribbons, instanced low-poly campus trees, and an atmospheric cobalt horizon sky dome.
 - **100% Client-Side Schedule Parsing:**
   - `.ics` calendar exports via `ical.js` (including multi-date non-RRULE weekday merging)
   - `.pdf` schedule exports via `pdfjs-dist` (bundled local worker — no CDN calls), supporting both list/table exports and multi-column WISER weekly calendar-grid PDFs

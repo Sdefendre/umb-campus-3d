@@ -1,16 +1,54 @@
 import * as THREE from 'three';
 import { CampusControls } from './controls';
 import { dist2D, pointInBuildingPolygons } from './geo';
-import type { BuildingRecord, CameraMode, Point2D, RoutePoint } from './types';
+import { createArchitecturalTextures, type ArchitecturalTextures } from './textures';
+import type {
+  BuildingRecord,
+  CameraMode,
+  Point2D,
+  RoadRecord,
+  RoofPartRecord,
+  RoutePoint,
+  SurfaceRecord,
+} from './types';
 
 interface BuildingVisual {
   record: BuildingRecord;
   mesh: THREE.Mesh;
   edges: THREE.LineSegments;
-  material: THREE.MeshStandardMaterial;
+  materials: THREE.MeshStandardMaterial[];
   edgeMaterial: THREE.LineBasicMaterial;
   labelEl: HTMLButtonElement | null;
 }
+
+export interface CampusLoadPayload {
+  buildings: BuildingRecord[];
+  roofParts?: RoofPartRecord[];
+  paths: { points: Point2D[]; highway: string }[];
+  roads?: RoadRecord[];
+  surfaces?: SurfaceRecord[];
+  coastlines?: Point2D[][];
+}
+
+const GLASS_BUILDING_NAMES = new Set([
+  'Integrated Sciences Complex',
+  'University Hall',
+  'Campus Center',
+  'West Garage',
+  'John F. Kennedy Presidential Library and Museum',
+]);
+
+const MASONRY_BUILDING_NAMES = new Set([
+  'Healey Library',
+  'McCormack Hall',
+  'Wheatley Hall',
+  'Quinn Administration Building',
+  'Clark Athletic Center',
+  'West Residence Hall',
+  'East Residence Hall',
+  'Massachusetts Archives',
+  'Calf Pasture Pumping Station',
+]);
 
 interface RouteSample {
   point: Point2D;
@@ -50,6 +88,7 @@ export class CampusScene {
   private readonly userMarker = new THREE.Group();
   private userMarkerPulse: THREE.Mesh | null = null;
   private xrayBuildingIds = new Set<string>();
+  private textures: ArchitecturalTextures | null = null;
 
   private routeSamples: RouteSample[] = [];
   private routeTotalDist = 0;
@@ -104,6 +143,7 @@ export class CampusScene {
     this.controls.target.set(0, 8, 10);
 
     this.setupLighting();
+    this.setupSkyDome();
     this.setupGround();
     this.scene.add(this.routeGroup);
 
@@ -135,30 +175,68 @@ export class CampusScene {
     this.scene.add(rim);
   }
 
-  private setupGround(): void {
-    // Deep matte ground plane
-    const groundGeo = new THREE.PlaneGeometry(3600, 3600);
-    const groundMat = new THREE.MeshStandardMaterial({
-      color: 0x070b13,
-      roughness: 0.95,
-      metalness: 0.08,
+  private setupSkyDome(): void {
+    // Subtle vertical midnight-to-deep-cobalt horizon sky gradient
+    const skyGeo = new THREE.SphereGeometry(1950, 24, 16);
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        topColor: { value: new THREE.Color(0x04070f) },
+        horizonColor: { value: new THREE.Color(0x0e213d) },
+        bottomColor: { value: new THREE.Color(0x050b16) },
+      },
+      vertexShader: `
+        varying vec3 vWorldPos;
+        void main() {
+          vec4 wp = modelMatrix * vec4(position, 1.0);
+          vWorldPos = wp.xyz;
+          gl_Position = projectionMatrix * viewMatrix * wp;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 horizonColor;
+        uniform vec3 bottomColor;
+        varying vec3 vWorldPos;
+        void main() {
+          float h = normalize(vWorldPos).y;
+          vec3 col = h >= 0.0
+            ? mix(horizonColor, topColor, pow(clamp(h * 1.45, 0.0, 1.0), 0.72))
+            : mix(horizonColor, bottomColor, clamp(-h * 3.0, 0.0, 1.0));
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `,
     });
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.y = -0.05;
-    this.scene.add(ground);
+    this.scene.add(new THREE.Mesh(skyGeo, skyMat));
+  }
 
-    // Dual-scale FSD grid: fine 25m grid + accent 100m grid
-    const fineGrid = new THREE.GridHelper(2000, 80, 0x16243a, 0x0e1726);
-    fineGrid.position.y = 0.01;
+  private setupGround(): void {
+    // Dorchester Bay & Savin Hill Cove water surface spanning the entire harbor
+    const waterGeo = new THREE.PlaneGeometry(4200, 4200);
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x051529,
+      emissive: 0x030c18,
+      emissiveIntensity: 0.55,
+      roughness: 0.28,
+      metalness: 0.55,
+    });
+    const water = new THREE.Mesh(waterGeo, waterMat);
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = -0.38;
+    this.scene.add(water);
+
+    // Dual-scale FSD tactical grid resting lightly above the campus terrain
+    const fineGrid = new THREE.GridHelper(1800, 72, 0x15243b, 0x0d1726);
+    fineGrid.position.y = 0.03;
     (fineGrid.material as THREE.Material).transparent = true;
-    (fineGrid.material as THREE.Material).opacity = 0.55;
+    (fineGrid.material as THREE.Material).opacity = 0.34;
     this.scene.add(fineGrid);
 
-    const macroGrid = new THREE.GridHelper(2000, 20, 0x1f3659, 0x1a2c47);
-    macroGrid.position.y = 0.03;
+    const macroGrid = new THREE.GridHelper(1800, 18, 0x1e3557, 0x162944);
+    macroGrid.position.y = 0.04;
     (macroGrid.material as THREE.Material).transparent = true;
-    (macroGrid.material as THREE.Material).opacity = 0.5;
+    (macroGrid.material as THREE.Material).opacity = 0.32;
     this.scene.add(macroGrid);
   }
 
@@ -328,15 +406,58 @@ export class CampusScene {
   }
 
   /**
-   * Populates the 3D scene with extruded OSM buildings, footways, and Dorchester Bay coastline.
+   * Populates the 3D scene with Columbia Point peninsula landmass, Dorchester Bay shoreline,
+   * campus lawns/fields/roads/trees, extruded buildings with procedural architectural facades,
+   * and BPDA LoD2 roof tiers.
    */
-  loadCampus(
-    buildings: BuildingRecord[],
-    paths: { points: Point2D[]; highway: string }[],
-    coastlines: Point2D[][] = []
-  ): void {
-    // 0. Render Dorchester Bay / Columbia Point shoreline
+  loadCampus(payload: CampusLoadPayload): void {
+    const {
+      buildings,
+      roofParts = [],
+      paths,
+      roads = [],
+      surfaces = [],
+      coastlines = [],
+    } = payload;
+
+    this.textures = createArchitecturalTextures();
+
+    // 0. Columbia Point peninsula landmass & glowing Harborwalk shoreline
     if (coastlines.length > 0) {
+      // Longest coastline chain traces the Columbia Point peninsula around Dorchester Bay
+      const sortedCoast = [...coastlines].sort((a, b) => b.length - a.length);
+      const mainChain = sortedCoast[0];
+      if (mainChain.length >= 6) {
+        const landShape = new THREE.Shape();
+        landShape.moveTo(mainChain[0].x, -mainChain[0].z);
+        for (let i = 1; i < mainChain.length; i++) {
+          landShape.lineTo(mainChain[i].x, -mainChain[i].z);
+        }
+        // Close peninsula inland to the west (Dorchester / Morrissey Blvd side)
+        const last = mainChain[mainChain.length - 1];
+        const first = mainChain[0];
+        landShape.lineTo(-1650, -last.z);
+        landShape.lineTo(-1650, -first.z);
+        landShape.closePath();
+
+        const landGeo = new THREE.ExtrudeGeometry(landShape, {
+          depth: 0.39,
+          bevelEnabled: false,
+        });
+        landGeo.rotateX(-Math.PI / 2);
+        landGeo.translate(0, -0.38, 0);
+        const landMesh = new THREE.Mesh(
+          landGeo,
+          new THREE.MeshStandardMaterial({
+            color: 0x090f1a,
+            roughness: 0.92,
+            metalness: 0.08,
+          })
+        );
+        this.scene.add(landMesh);
+      }
+
+      // Luminous Harborwalk shoreline contour along all coastline segments
       const coastCorePts: number[] = [];
       for (const chain of coastlines) {
         if (chain.length < 2) continue;
@@ -345,16 +466,16 @@ export class CampusScene {
           const b = chain[i];
           coastCorePts.push(a.x, 0.14, a.z, b.x, 0.14, b.z);
         }
-        const vecs = chain.map((p) => new THREE.Vector3(p.x, 0.12, p.z));
+        const vecs = chain.map((p) => new THREE.Vector3(p.x, 0.08, p.z));
         if (vecs.length >= 2) {
           const coastCurve = new THREE.CatmullRomCurve3(vecs, false, 'centripetal', 0.2);
           const segs = Math.min(320, Math.max(24, vecs.length * 2));
           const ribbon = new THREE.Mesh(
-            new THREE.TubeGeometry(coastCurve, segs, 3.2, 4, false),
+            new THREE.TubeGeometry(coastCurve, segs, 3.0, 4, false),
             new THREE.MeshBasicMaterial({
-              color: 0x0d5c8a,
+              color: 0x0f6d9e,
               transparent: true,
-              opacity: 0.26,
+              opacity: 0.3,
               blending: THREE.AdditiveBlending,
               depthWrite: false,
             })
@@ -370,30 +491,29 @@ export class CampusScene {
           new THREE.LineSegments(
             coastGeo,
             new THREE.LineBasicMaterial({
-              color: 0x32a8d9,
+              color: 0x3db5e6,
               transparent: true,
-              opacity: 0.78,
+              opacity: 0.82,
             })
           )
         );
       }
-
-      const bayMat = new THREE.MeshBasicMaterial({
-        color: 0x051428,
-        transparent: true,
-        opacity: 0.45,
-        depthWrite: false,
-      });
-      const bayNorthEast = new THREE.Mesh(new THREE.PlaneGeometry(1800, 2400), bayMat);
-      bayNorthEast.rotation.x = -Math.PI / 2;
-      bayNorthEast.position.set(1180, -0.02, -40);
-      this.scene.add(bayNorthEast);
-
-      const bayNorth = new THREE.Mesh(new THREE.PlaneGeometry(2400, 1200), bayMat);
-      bayNorth.rotation.x = -Math.PI / 2;
-      bayNorth.position.set(160, -0.02, -960);
-      this.scene.add(bayNorth);
+    } else {
+      // Fallback solid ground if coastline absent
+      const fallback = new THREE.Mesh(
+        new THREE.PlaneGeometry(3600, 3600),
+        new THREE.MeshStandardMaterial({ color: 0x090f1a, roughness: 0.95 })
+      );
+      fallback.rotation.x = -Math.PI / 2;
+      fallback.position.y = -0.02;
+      this.scene.add(fallback);
     }
+
+    // 0b. Merged campus terrain surfaces (1 draw call each: lawns, athletic fields, parking lots)
+    this.buildTerrainSurfaces(surfaces);
+
+    // 0c. Merged paved campus road corridors (1 draw call + faint center markings)
+    this.buildRoadNetwork(roads);
 
     // 1. Render subtle OSM footway network on ground (FSD lane-line aesthetic)
     const footPositions: number[] = [];
@@ -410,7 +530,7 @@ export class CampusScene {
       for (let i = 1; i < p.points.length; i++) {
         const a = p.points[i - 1];
         const b = p.points[i];
-        target.push(a.x, 0.09, a.z, b.x, 0.09, b.z);
+        target.push(a.x, 0.12, a.z, b.x, 0.12, b.z);
       }
     }
 
@@ -420,9 +540,9 @@ export class CampusScene {
       const roadLines = new THREE.LineSegments(
         roadGeo,
         new THREE.LineBasicMaterial({
-          color: 0x1e2c42,
+          color: 0x22344f,
           transparent: true,
-          opacity: 0.42,
+          opacity: 0.45,
         })
       );
       this.scene.add(roadLines);
@@ -434,15 +554,17 @@ export class CampusScene {
       const footLines = new THREE.LineSegments(
         footGeo,
         new THREE.LineBasicMaterial({
-          color: 0x2f4b73,
+          color: 0x355885,
           transparent: true,
-          opacity: 0.52,
+          opacity: 0.56,
         })
       );
       this.scene.add(footLines);
     }
 
-    // 2. Extrude OSM buildings
+    // 2. Extrude OSM buildings with world-scale procedural architectural facades
+    const tex = this.textures;
+    const majorCentroids = buildings.filter((mb) => mb.isMajor).map((mb) => mb.centroid);
     for (const b of buildings) {
       const shapes: THREE.Shape[] = [];
       for (const poly of b.polygons) {
@@ -472,28 +594,55 @@ export class CampusScene {
 
       if (shapes.length === 0) continue;
 
+      // Render multi-building campus podium decks (e.g. UMB 2-level plaza podium enclosing
+      // Quinn/Healey/McCormack/Wheatley) at their true low-rise podium height so the major
+      // buildings rise crisply above them instead of being buried inside a taller box.
+      const enclosesMajor =
+        !b.isMajor && majorCentroids.some((mc) => pointInBuildingPolygons(mc, b.polygons));
+      const renderHeight = enclosesMajor
+        ? Math.min(b.height, (b.levels && b.levels <= 3 ? b.levels : 2) * 3.4)
+        : b.height;
+
       const geo = new THREE.ExtrudeGeometry(shapes, {
-        depth: b.height,
+        depth: renderHeight,
         bevelEnabled: false,
       });
       geo.rotateX(-Math.PI / 2);
 
-      const mat = new THREE.MeshStandardMaterial({
-        color: b.isMajor ? 0x1a2d4c : 0x0f1828,
-        emissive: b.isMajor ? 0x0c1f3d : 0x040812,
-        emissiveIntensity: b.isMajor ? 0.72 : 0.32,
-        roughness: b.isMajor ? 0.62 : 0.84,
-        metalness: b.isMajor ? 0.28 : 0.12,
+      const isGlass = GLASS_BUILDING_NAMES.has(b.name);
+      const isMasonry = MASONRY_BUILDING_NAMES.has(b.name);
+      const facadeMap = isGlass
+        ? tex.glassFacade
+        : isMasonry
+          ? tex.masonryFacade
+          : tex.secondaryFacade;
+
+      const roofMat = new THREE.MeshStandardMaterial({
+        color: b.isMajor ? 0xc8e4ff : 0x7a96b8,
+        map: tex.roofCap,
+        emissive: b.isMajor ? 0x0e2447 : 0x050c1a,
+        emissiveIntensity: b.isMajor ? 0.65 : 0.28,
+        roughness: 0.72,
+        metalness: 0.22,
       });
 
-      const mesh = new THREE.Mesh(geo, mat);
+      const facadeMat = new THREE.MeshStandardMaterial({
+        color: b.isMajor ? 0xffffff : isMasonry || isGlass ? 0xd0e4fa : 0xaec4de,
+        map: facadeMap,
+        emissive: b.isMajor ? 0x102d54 : 0x061020,
+        emissiveIntensity: b.isMajor ? 0.58 : 0.28,
+        roughness: isGlass ? 0.3 : 0.62,
+        metalness: isGlass ? 0.44 : 0.18,
+      });
+
+      const mesh = new THREE.Mesh(geo, [roofMat, facadeMat]);
       this.scene.add(mesh);
 
       const edgesGeo = new THREE.EdgesGeometry(geo, 22);
       const edgeMat = new THREE.LineBasicMaterial({
-        color: b.isMajor ? 0x5cc0ff : 0x294061,
+        color: b.isMajor ? 0x5cc0ff : 0x2b4569,
         transparent: true,
-        opacity: b.isMajor ? 0.85 : 0.45,
+        opacity: b.isMajor ? 0.85 : 0.44,
       });
       const edges = new THREE.LineSegments(edgesGeo, edgeMat);
       this.scene.add(edges);
@@ -514,13 +663,334 @@ export class CampusScene {
         record: b,
         mesh,
         edges,
-        material: mat,
+        materials: [roofMat, facadeMat],
         edgeMaterial: edgeMat,
         labelEl,
       });
     }
 
+    // 2b. BPDA LoD2 stepped roof tiers & penthouses + landmark signatures
+    this.buildRoofParts(roofParts, tex);
+    this.buildLandmarkDetails(buildings);
+
+    // 2c. Instanced stylized trees along campus lawns & waterfront park (clear of paths)
+    this.buildInstancedTrees(surfaces, buildings, paths);
+
     this.frameOverview();
+  }
+
+  private buildTerrainSurfaces(surfaces: SurfaceRecord[]): void {
+    const byType: Record<'green' | 'pitch' | 'parking', THREE.Shape[]> = {
+      green: [],
+      pitch: [],
+      parking: [],
+    };
+    const pitchOutlinePts: number[] = [];
+
+    for (const s of surfaces) {
+      if (s.ring.length < 3) continue;
+      const shape = new THREE.Shape();
+      shape.moveTo(s.ring[0].x, -s.ring[0].z);
+      for (let i = 1; i < s.ring.length; i++) {
+        shape.lineTo(s.ring[i].x, -s.ring[i].z);
+      }
+      shape.closePath();
+      byType[s.surfaceType].push(shape);
+
+      if (s.surfaceType === 'pitch') {
+        for (let i = 1; i < s.ring.length; i++) {
+          const a = s.ring[i - 1];
+          const b = s.ring[i];
+          pitchOutlinePts.push(a.x, 0.09, a.z, b.x, 0.09, b.z);
+        }
+      }
+    }
+
+    const addLayer = (
+      shapes: THREE.Shape[],
+      y: number,
+      color: number,
+      opacity: number
+    ): void => {
+      if (shapes.length === 0) return;
+      const geo = new THREE.ShapeGeometry(shapes);
+      geo.rotateX(-Math.PI / 2);
+      const mesh = new THREE.Mesh(
+        geo,
+        new THREE.MeshStandardMaterial({
+          color,
+          roughness: 0.94,
+          metalness: 0.05,
+          transparent: opacity < 1,
+          opacity,
+        })
+      );
+      mesh.position.y = y;
+      this.scene.add(mesh);
+    };
+
+    addLayer(byType.green, 0.05, 0x0c1e22, 0.92);
+    addLayer(byType.parking, 0.06, 0x101826, 0.95);
+    addLayer(byType.pitch, 0.075, 0x0f2a30, 0.96);
+
+    if (pitchOutlinePts.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pitchOutlinePts, 3));
+      this.scene.add(
+        new THREE.LineSegments(
+          geo,
+          new THREE.LineBasicMaterial({ color: 0x357c94, transparent: true, opacity: 0.72 })
+        )
+      );
+    }
+  }
+
+  private buildRoadNetwork(roads: RoadRecord[]): void {
+    if (roads.length === 0) return;
+    const positions: number[] = [];
+    const centerLinePts: number[] = [];
+
+    for (const road of roads) {
+      const halfW =
+        road.highway === 'primary'
+          ? 5.2
+          : road.highway === 'secondary' || road.highway === 'tertiary'
+            ? 4.0
+            : 3.1;
+      for (let i = 1; i < road.points.length; i++) {
+        const a = road.points[i - 1];
+        const b = road.points[i];
+        const dx = b.x - a.x;
+        const dz = b.z - a.z;
+        const len = Math.hypot(dx, dz);
+        if (len < 0.2) continue;
+        const nx = (-dz / len) * halfW;
+        const nz = (dx / len) * halfW;
+
+        const aLx = a.x + nx;
+        const aLz = a.z + nz;
+        const aRx = a.x - nx;
+        const aRz = a.z - nz;
+        const bLx = b.x + nx;
+        const bLz = b.z + nz;
+        const bRx = b.x - nx;
+        const bRz = b.z - nz;
+
+        // Two triangles per road segment (counter-clockwise facing +Y)
+        positions.push(
+          aLx, 0.08, aLz, bLx, 0.08, bLz, bRx, 0.08, bRz,
+          aLx, 0.08, aLz, bRx, 0.08, bRz, aRx, 0.08, aRz
+        );
+        centerLinePts.push(a.x, 0.105, a.z, b.x, 0.105, b.z);
+      }
+    }
+
+    if (positions.length > 0) {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.computeVertexNormals();
+      this.scene.add(
+        new THREE.Mesh(
+          geo,
+          new THREE.MeshStandardMaterial({
+            color: 0x111a29,
+            roughness: 0.88,
+            metalness: 0.1,
+          })
+        )
+      );
+    }
+
+    if (centerLinePts.length > 0) {
+      const cGeo = new THREE.BufferGeometry();
+      cGeo.setAttribute('position', new THREE.Float32BufferAttribute(centerLinePts, 3));
+      this.scene.add(
+        new THREE.LineSegments(
+          cGeo,
+          new THREE.LineBasicMaterial({ color: 0x264266, transparent: true, opacity: 0.55 })
+        )
+      );
+    }
+  }
+
+  private buildRoofParts(roofParts: RoofPartRecord[], tex: ArchitecturalTextures): void {
+    for (const part of roofParts) {
+      const depth = part.height - part.baseHeight;
+      if (depth <= 0.5 || part.ring.length < 3) continue;
+      const shape = new THREE.Shape();
+      shape.moveTo(part.ring[0].x, -part.ring[0].z);
+      for (let i = 1; i < part.ring.length; i++) {
+        shape.lineTo(part.ring[i].x, -part.ring[i].z);
+      }
+      shape.closePath();
+
+      const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+      geo.rotateX(-Math.PI / 2);
+      geo.translate(0, part.baseHeight, 0);
+
+      const isGlass = part.parentName ? GLASS_BUILDING_NAMES.has(part.parentName) : false;
+      const matRoof = new THREE.MeshStandardMaterial({
+        color: 0xaecbe8,
+        map: tex.roofCap,
+        emissive: 0x0b1f3d,
+        emissiveIntensity: 0.48,
+        roughness: 0.72,
+        metalness: 0.24,
+      });
+      const matSide = new THREE.MeshStandardMaterial({
+        color: 0xe6f2ff,
+        map: isGlass ? tex.glassFacade : tex.masonryFacade,
+        emissive: 0x0c2445,
+        emissiveIntensity: 0.45,
+        roughness: isGlass ? 0.32 : 0.64,
+        metalness: isGlass ? 0.42 : 0.2,
+      });
+      this.scene.add(new THREE.Mesh(geo, [matRoof, matSide]));
+      this.scene.add(
+        new THREE.LineSegments(
+          new THREE.EdgesGeometry(geo, 22),
+          new THREE.LineBasicMaterial({ color: 0x4ca6eb, transparent: true, opacity: 0.65 })
+        )
+      );
+    }
+  }
+
+  private buildLandmarkDetails(buildings: BuildingRecord[]): void {
+    // 1. Healey Library iconic rooftop observatory dome + penthouse collar
+    const healey = buildings.find((b) => b.id === 'healey');
+    if (healey) {
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(3.4, 3.8, 2.2, 16),
+        new THREE.MeshStandardMaterial({ color: 0x1c304f, roughness: 0.65, metalness: 0.25 })
+      );
+      base.position.set(healey.centroid.x + 8, healey.height + 1.1, healey.centroid.z - 10);
+      this.scene.add(base);
+
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(3.2, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.55),
+        new THREE.MeshStandardMaterial({
+          color: 0x5c8ab8,
+          emissive: 0x123257,
+          emissiveIntensity: 0.45,
+          roughness: 0.35,
+          metalness: 0.45,
+        })
+      );
+      dome.position.set(healey.centroid.x + 8, healey.height + 2.1, healey.centroid.z - 10);
+      this.scene.add(dome);
+    }
+
+    // 2. Integrated Sciences Complex central faceted glass atrium silhouette
+    const isc = buildings.find((b) => b.id === 'isc');
+    if (isc) {
+      const atriumX = isc.centroid.x - 16;
+      const atriumY = isc.height * 0.78;
+      const atriumZ = isc.centroid.z + 6;
+      const atrium = new THREE.Mesh(
+        new THREE.ConeGeometry(8.5, 8.5, 4),
+        new THREE.MeshStandardMaterial({
+          color: 0x4db5e0,
+          emissive: 0x134e70,
+          emissiveIntensity: 0.55,
+          roughness: 0.2,
+          metalness: 0.55,
+          transparent: true,
+          opacity: 0.76,
+        })
+      );
+      atrium.rotation.y = Math.PI * 0.25;
+      atrium.position.set(atriumX, atriumY, atriumZ);
+      this.scene.add(atrium);
+      const atriumEdges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(atrium.geometry),
+        new THREE.LineBasicMaterial({ color: 0x76ecff, transparent: true, opacity: 0.8 })
+      );
+      atriumEdges.rotation.y = Math.PI * 0.25;
+      atriumEdges.position.set(atriumX, atriumY, atriumZ);
+      this.scene.add(atriumEdges);
+    }
+  }
+
+  private buildInstancedTrees(
+    surfaces: SurfaceRecord[],
+    buildings: BuildingRecord[],
+    paths: { points: Point2D[]; highway: string }[]
+  ): void {
+    const candidates: Point2D[] = [];
+    const minSpacing = 26;
+
+    const isInsideBuilding = (pt: Point2D): boolean => {
+      for (const b of buildings) {
+        if (dist2D(pt, b.centroid) > 130) continue;
+        if (pointInBuildingPolygons(pt, b.polygons)) return true;
+      }
+      return false;
+    };
+
+    const isNearPath = (pt: Point2D): boolean => {
+      for (const p of paths) {
+        for (const node of p.points) {
+          if (Math.abs(pt.x - node.x) < 8 && Math.abs(pt.z - node.z) < 8) {
+            if (dist2D(pt, node) < 7.5) return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    for (const s of surfaces) {
+      if (s.surfaceType !== 'green') continue;
+      for (let i = 0; i < s.ring.length; i += 2) {
+        const pt = s.ring[i];
+        if (candidates.length >= 125) break;
+        if (Math.abs(pt.x) > 760 || Math.abs(pt.z) > 650) continue;
+        if (isInsideBuilding(pt) || isNearPath(pt)) continue;
+        let tooClose = false;
+        for (const existing of candidates) {
+          if (dist2D(pt, existing) < minSpacing) {
+            tooClose = true;
+            break;
+          }
+        }
+        if (!tooClose) candidates.push(pt);
+      }
+    }
+
+    if (candidates.length === 0) return;
+
+    const trunkGeo = new THREE.CylinderGeometry(0.24, 0.36, 2.2, 5);
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x1d2633, roughness: 0.92 });
+    const crownGeo = new THREE.DodecahedronGeometry(2.3, 0);
+    const crownMat = new THREE.MeshStandardMaterial({
+      color: 0x184247,
+      emissive: 0x071e24,
+      emissiveIntensity: 0.45,
+      roughness: 0.82,
+      metalness: 0.08,
+    });
+
+    const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, candidates.length);
+    const crowns = new THREE.InstancedMesh(crownGeo, crownMat, candidates.length);
+    const dummy = new THREE.Object3D();
+
+    candidates.forEach((pt, idx) => {
+      const scale = 0.72 + ((idx * 37) % 10) * 0.038;
+      dummy.position.set(pt.x, 1.1 * scale, pt.z);
+      dummy.scale.set(scale, scale, scale);
+      dummy.rotation.set(0, idx * 1.1, 0);
+      dummy.updateMatrix();
+      trunks.setMatrixAt(idx, dummy.matrix);
+
+      dummy.position.set(pt.x, 3.7 * scale, pt.z);
+      dummy.scale.set(scale, scale * 1.12, scale);
+      dummy.updateMatrix();
+      crowns.setMatrixAt(idx, dummy.matrix);
+    });
+
+    trunks.instanceMatrix.needsUpdate = true;
+    crowns.instanceMatrix.needsUpdate = true;
+    this.scene.add(trunks);
+    this.scene.add(crowns);
   }
 
   frameOverview(): void {
@@ -721,21 +1191,27 @@ export class CampusScene {
     this.activeBuildingId = buildingId;
     for (const [id, vis] of this.buildings) {
       const isXray = this.xrayBuildingIds.has(id);
+      const [roofMat, facadeMat] = vis.materials;
       if (vis.record.isMajor) {
         const active = id === buildingId;
-        vis.material.color.setHex(active ? 0x1c4678 : 0x1a2d4c);
-        vis.material.emissive.setHex(active ? 0x1050a3 : 0x0c1f3d);
-        vis.material.emissiveIntensity = active ? 1.05 : 0.72;
+        roofMat.color.setHex(active ? 0x6ad4ff : 0xc8e4ff);
+        roofMat.emissive.setHex(active ? 0x1465cc : 0x0e2447);
+        roofMat.emissiveIntensity = active ? 1.1 : 0.65;
+        facadeMat.color.setHex(active ? 0xd8f3ff : 0xffffff);
+        facadeMat.emissive.setHex(active ? 0x1462c9 : 0x102d54);
+        facadeMat.emissiveIntensity = active ? 0.95 : 0.58;
         vis.edgeMaterial.color.setHex(active ? 0x76ecff : isXray ? 0x52ffe6 : 0x5cc0ff);
         vis.edgeMaterial.opacity = active || isXray ? 1.0 : 0.85;
         if (vis.labelEl) {
           vis.labelEl.classList.toggle('is-active', active);
         }
       }
-      vis.material.transparent = isXray;
-      vis.material.opacity = isXray ? 0.3 : 1.0;
-      vis.material.depthWrite = !isXray;
-      vis.material.needsUpdate = true;
+      for (const m of vis.materials) {
+        m.transparent = isXray;
+        m.opacity = isXray ? 0.3 : 1.0;
+        m.depthWrite = !isXray;
+        m.needsUpdate = true;
+      }
     }
   }
 

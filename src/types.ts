@@ -35,12 +35,33 @@ export interface BuildingProperties {
   buildingType?: string;
 }
 
+export interface RoofPartProperties {
+  kind: 'roofPart';
+  osmId: string;
+  parentName?: string;
+  baseHeight: number;
+  height: number;
+}
+
 export interface PathProperties {
   kind: 'path';
   osmId: string;
   highway: string;
   name?: string;
   covered?: boolean;
+}
+
+export interface RoadProperties {
+  kind: 'road';
+  osmId: string;
+  highway: string;
+}
+
+export interface SurfaceProperties {
+  kind: 'surface';
+  osmId: string;
+  surfaceType: 'green' | 'pitch' | 'parking';
+  sport?: string;
 }
 
 export interface CoastlineProperties {
@@ -58,8 +79,23 @@ export type CampusFeature =
     }
   | {
       type: 'Feature';
+      properties: RoofPartProperties;
+      geometry: { type: 'Polygon'; coordinates: number[][][] };
+    }
+  | {
+      type: 'Feature';
       properties: PathProperties;
       geometry: { type: 'LineString'; coordinates: number[][] };
+    }
+  | {
+      type: 'Feature';
+      properties: RoadProperties;
+      geometry: { type: 'LineString'; coordinates: number[][] };
+    }
+  | {
+      type: 'Feature';
+      properties: SurfaceProperties;
+      geometry: { type: 'Polygon'; coordinates: number[][][] };
     }
   | {
       type: 'Feature';
@@ -74,9 +110,29 @@ export interface BuildingRecord {
   shortCode: string;
   isMajor: boolean;
   height: number;
+  levels?: number;
   centroid: Point2D;
   /** Projected polygon rings: each polygon is [outerRing, ...holes] */
   polygons: Point2D[][][];
+}
+
+export interface RoofPartRecord {
+  id: string;
+  parentName?: string;
+  baseHeight: number;
+  height: number;
+  ring: Point2D[];
+}
+
+export interface SurfaceRecord {
+  surfaceType: 'green' | 'pitch' | 'parking';
+  sport?: string;
+  ring: Point2D[];
+}
+
+export interface RoadRecord {
+  highway: string;
+  points: Point2D[];
 }
 
 export interface StartPoint {

@@ -10,7 +10,10 @@ import type {
   ClassItem,
   LonLat,
   Point2D,
+  RoadRecord,
+  RoofPartRecord,
   RouteMode,
+  SurfaceRecord,
 } from './types';
 
 let scheduleModPromise: Promise<typeof import('./schedule')> | null = null;
@@ -460,7 +463,10 @@ async function loadCampusData(): Promise<void> {
 
   projector = new LocalProjector(data.metadata.origin);
   const buildings: BuildingRecord[] = [];
+  const roofParts: RoofPartRecord[] = [];
   const paths: { points: Point2D[]; highway: string; covered?: boolean }[] = [];
+  const roads: RoadRecord[] = [];
+  const surfaces: SurfaceRecord[] = [];
   const coastlines: Point2D[][] = [];
 
   for (const feat of data.features) {
@@ -484,12 +490,24 @@ async function loadCampusData(): Promise<void> {
         shortCode: majorDef ? majorDef.shortCode : '',
         isMajor: Boolean(majorDef),
         height: feat.properties.height,
+        levels: feat.properties.levels,
         centroid,
         polygons,
       };
       buildings.push(record);
       if (majorDef) {
         majorBuildingsMap.set(majorDef.id, record);
+      }
+    } else if (feat.properties.kind === 'roofPart' && feat.geometry.type === 'Polygon') {
+      const ring = projector.projectRing(feat.geometry.coordinates[0] ?? []);
+      if (ring.length >= 3) {
+        roofParts.push({
+          id: feat.properties.osmId,
+          parentName: feat.properties.parentName,
+          baseHeight: feat.properties.baseHeight,
+          height: feat.properties.height,
+          ring,
+        });
       }
     } else if (feat.properties.kind === 'path' && feat.geometry.type === 'LineString') {
       const pts = projector.projectRing(feat.geometry.coordinates);
@@ -498,6 +516,20 @@ async function loadCampusData(): Promise<void> {
           points: pts,
           highway: feat.properties.highway,
           covered: feat.properties.covered,
+        });
+      }
+    } else if (feat.properties.kind === 'road' && feat.geometry.type === 'LineString') {
+      const pts = projector.projectRing(feat.geometry.coordinates);
+      if (pts.length >= 2) {
+        roads.push({ highway: feat.properties.highway, points: pts });
+      }
+    } else if (feat.properties.kind === 'surface' && feat.geometry.type === 'Polygon') {
+      const ring = projector.projectRing(feat.geometry.coordinates[0] ?? []);
+      if (ring.length >= 3) {
+        surfaces.push({
+          surfaceType: feat.properties.surfaceType,
+          sport: feat.properties.sport,
+          ring,
         });
       }
     } else if (feat.properties.kind === 'coastline' && feat.geometry.type === 'LineString') {
@@ -509,7 +541,7 @@ async function loadCampusData(): Promise<void> {
   }
 
   graph = new CampusFootwayGraph(paths, buildings);
-  scene.loadCampus(buildings, paths, coastlines);
+  scene.loadCampus({ buildings, roofParts, paths, roads, surfaces, coastlines });
 
   const params = new URLSearchParams(window.location.search);
   if (params.get('evalView') === '1') {
