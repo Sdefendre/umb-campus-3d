@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { CampusControls } from './controls';
 import { dist2D } from './geo';
 import type { BuildingRecord, CameraMode, Point2D } from './types';
 
@@ -31,7 +31,7 @@ export class CampusScene {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly controls: OrbitControls;
+  private readonly controls: CampusControls;
 
   private readonly buildings = new Map<string, BuildingVisual>();
   private readonly routeGroup = new THREE.Group();
@@ -59,6 +59,7 @@ export class CampusScene {
 
   private lastTime = 0;
   private elapsed = 0;
+  private cachedSafeBottom: number | null = null;
   private readonly tmpVec = new THREE.Vector3();
   private readonly desiredCamPos = new THREE.Vector3();
   private readonly desiredTarget = new THREE.Vector3();
@@ -88,18 +89,15 @@ export class CampusScene {
     this.renderer.toneMappingExposure = 1.15;
     container.appendChild(this.renderer.domElement);
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-    this.controls.enableDamping = true;
-    this.controls.dampingFactor = 0.07;
-    this.controls.maxPolarAngle = Math.PI * 0.465;
-    this.controls.minDistance = 24;
-    this.controls.maxDistance = 950;
-    this.controls.target.set(0, 8, 10);
-    this.controls.addEventListener('start', () => {
+    this.controls = new CampusControls(this.camera, this.renderer.domElement, () => {
       if (this.cameraMode === 'chase' && this.routeSamples.length > 0) {
         this.userOverrideCamera = true;
       }
     });
+    this.controls.maxPolarAngle = Math.PI * 0.465;
+    this.controls.minDistance = 24;
+    this.controls.maxDistance = 950;
+    this.controls.target.set(0, 8, 10);
 
     this.setupLighting();
     this.setupGround();
@@ -417,8 +415,9 @@ export class CampusScene {
 
   frameOverview(): void {
     this.userOverrideCamera = false;
-    this.controls.target.set(10, 8, 25);
-    this.camera.position.set(-225, 200, 290);
+    const isNarrow = this.container.clientWidth < 900;
+    this.controls.target.set(isNarrow ? -35 : 10, 8, isNarrow ? 55 : 25);
+    this.camera.position.set(isNarrow ? -265 : -225, isNarrow ? 260 : 200, isNarrow ? 345 : 290);
     this.controls.update();
   }
 
@@ -830,10 +829,22 @@ export class CampusScene {
     this.updateLabels();
   };
 
+  invalidateLayout(): void {
+    this.cachedSafeBottom = null;
+  }
+
   private updateLabels(): void {
     const width = this.container.clientWidth;
     const height = this.container.clientHeight;
     if (width === 0 || height === 0) return;
+
+    const isNarrow = width < 900;
+    if (isNarrow && this.cachedSafeBottom === null) {
+      const panelEl = document.getElementById('panel');
+      this.cachedSafeBottom = panelEl ? panelEl.getBoundingClientRect().top - 12 : height - 24;
+    }
+    const safeBottom = isNarrow ? (this.cachedSafeBottom ?? height - 24) : height - 24;
+    const safeTop = 64;
 
     for (const vis of this.buildings.values()) {
       const el = vis.labelEl;
@@ -847,11 +858,12 @@ export class CampusScene {
       const behind = this.tmpVec.z > 1 || this.tmpVec.z < -1;
       const sx = (this.tmpVec.x * 0.5 + 0.5) * width;
       const sy = (-this.tmpVec.y * 0.5 + 0.5) * height;
-      const outOfBounds = sx < -80 || sx > width + 80 || sy < -40 || sy > height + 40;
+      const outOfBounds = sx < -80 || sx > width + 80 || sy < safeTop || sy > safeBottom;
 
       if (behind || outOfBounds) {
         el.style.opacity = '0';
         el.style.pointerEvents = 'none';
+        el.style.transform = 'translate3d(-9999px, -9999px, 0)';
         continue;
       }
 
@@ -867,6 +879,7 @@ export class CampusScene {
   private handleResize = (): void => {
     const width = this.container.clientWidth || window.innerWidth;
     const height = this.container.clientHeight || window.innerHeight;
+    this.cachedSafeBottom = null;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);

@@ -123,23 +123,33 @@ export class CampusFootwayGraph {
       return id;
     };
 
+    const segmentCrossesBuilding = (pa: Point2D, pb: Point2D, segLen: number): boolean => {
+      if (isInsideAnyBuilding(pa) || isInsideAnyBuilding(pb)) return true;
+      const steps = Math.max(2, Math.ceil(segLen / 2));
+      for (let k = 1; k < steps; k++) {
+        const t = k / steps;
+        if (isInsideAnyBuilding({ x: pa.x + (pb.x - pa.x) * t, z: pa.z + (pb.z - pa.z) * t })) {
+          return true;
+        }
+      }
+      return false;
+    };
+
     for (const path of paths) {
+      if (path.covered) continue;
       const baseMult = HIGHWAY_WEIGHT_MULTIPLIER[path.highway] ?? 1.25;
-      const coveredMult = path.covered ? 3.5 : 1.0;
       for (let i = 1; i < path.points.length; i++) {
-        const a = getOrCreate(path.points[i - 1]);
-        const b = getOrCreate(path.points[i]);
-        if (a === b) continue;
-        const pa = this.nodes[a].point;
-        const pb = this.nodes[b].point;
-        const d = dist2D(pa, pb);
+        const rawA = path.points[i - 1];
+        const rawB = path.points[i];
+        const d = dist2D(rawA, rawB);
         if (d < 0.05) continue;
+        if (segmentCrossesBuilding(rawA, rawB, d)) continue;
 
-        const mid = { x: (pa.x + pb.x) * 0.5, z: (pa.z + pb.z) * 0.5 };
-        const indoorPenalty =
-          this.nodes[a].indoor || this.nodes[b].indoor || isInsideAnyBuilding(mid) ? 12.0 : 1.0;
+        const a = getOrCreate(rawA);
+        const b = getOrCreate(rawB);
+        if (a === b) continue;
 
-        const w = d * baseMult * coveredMult * indoorPenalty;
+        const w = d * baseMult;
         this.nodes[a].edges.push({ to: b, weight: w, rawDist: d });
         this.nodes[b].edges.push({ to: a, weight: w, rawDist: d });
       }

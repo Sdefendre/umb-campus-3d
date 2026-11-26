@@ -3,8 +3,18 @@ import { MAJOR_BUILDINGS, START_POINTS, matchOsmMajorBuilding } from './building
 import { LocalProjector, polygonCentroid } from './geo';
 import { CampusFootwayGraph } from './graph';
 import { CampusScene } from './scene';
-import { parseIcsSchedule, parsePdfSchedule, parseTextSchedule } from './schedule';
 import type { BuildingRecord, CameraMode, CampusGeoJSON, ClassItem, Point2D } from './types';
+
+let scheduleModPromise: Promise<typeof import('./schedule')> | null = null;
+function loadScheduleParser(): Promise<typeof import('./schedule')> {
+  if (!scheduleModPromise) {
+    scheduleModPromise = import('./schedule').catch((err) => {
+      scheduleModPromise = null;
+      throw err;
+    });
+  }
+  return scheduleModPromise;
+}
 
 // DOM references
 const viewportEl = document.getElementById('viewport')!;
@@ -138,11 +148,13 @@ function renderClassList(): void {
   if (classes.length === 0) {
     intakeViewEl.classList.remove('is-hidden');
     scheduleViewEl.classList.add('is-hidden');
+    scene.invalidateLayout();
     return;
   }
 
   intakeViewEl.classList.add('is-hidden');
   scheduleViewEl.classList.remove('is-hidden');
+  scene.invalidateLayout();
 
   const matchedCount = classes.filter((c) => c.buildingId).length;
   scheduleCountEl.textContent = `${matchedCount}/${classes.length} mapped`;
@@ -210,6 +222,7 @@ async function handleFile(file: File): Promise<void> {
   clearError();
   const lower = file.name.toLowerCase();
   try {
+    const { parseIcsSchedule, parsePdfSchedule, parseTextSchedule } = await loadScheduleParser();
     if (lower.endsWith('.ics') || file.type === 'text/calendar') {
       const text = await file.text();
       applyParsedClasses(parseIcsSchedule(text), file.name);
@@ -230,7 +243,10 @@ async function handleFile(file: File): Promise<void> {
 async function loadDemoSchedule(): Promise<void> {
   clearError();
   try {
-    const res = await fetch('./data/demo-schedule.ics');
+    const [res, { parseIcsSchedule }] = await Promise.all([
+      fetch('./data/demo-schedule.ics'),
+      loadScheduleParser(),
+    ]);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const icsText = await res.text();
     const parsed = parseIcsSchedule(icsText);
@@ -337,7 +353,14 @@ btnPasteInlineEl.addEventListener('click', openPasteBox);
 btnCancelPasteEl.addEventListener('click', () => pasteBoxEl.classList.add('is-hidden'));
 
 btnParsePasteEl.addEventListener('click', () => {
-  applyParsedClasses(parseTextSchedule(pasteInputEl.value), 'Pasted schedule');
+  void loadScheduleParser()
+    .then(({ parseTextSchedule }) => {
+      applyParsedClasses(parseTextSchedule(pasteInputEl.value), 'Pasted schedule');
+    })
+    .catch((err) => {
+      const msg = err instanceof Error ? err.message : 'Unable to load schedule parser.';
+      showError(`Parse error: ${msg}`);
+    });
 });
 
 btnClearEl.addEventListener('click', () => {
@@ -372,10 +395,20 @@ btnReplayEl.addEventListener('click', () => scene.replayWalk());
 
 const toggleSheet = () => {
   const collapsed = panelEl.classList.toggle('is-collapsed');
+  const expanded = String(!collapsed);
   collapseBtnEl.textContent = collapsed ? 'Classes' : 'Map';
+  collapseBtnEl.setAttribute('aria-expanded', expanded);
+  sheetToggleEl.setAttribute('aria-expanded', expanded);
+  scene.invalidateLayout();
 };
 sheetToggleEl.addEventListener('click', toggleSheet);
 collapseBtnEl.addEventListener('click', toggleSheet);
+
+// Prompt user to refresh if a stale tab requests a pre-deploy lazy chunk
+window.addEventListener('vite:preloadError', (ev) => {
+  ev.preventDefault();
+  showError('App was updated — please reload the page to load your schedule.');
+});
 
 // Drag-and-drop file support
 window.addEventListener('dragover', (e) => {

@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
- * Fetches OpenStreetMap building footprints and walkable footways/paths
- * for the UMass Boston (Columbia Point) campus via the Overpass API
- * and writes a static GeoJSON file to public/data/umb-campus.geojson.
+ * Fetches OpenStreetMap building footprints & walkable footways for the
+ * UMass Boston (Columbia Point) campus and enriches building heights with
+ * City of Boston Planning Department (BPDA) 2010 LiDAR roof heights
+ * (Boston_Buildings FeatureServer Layer 9) where available.
  *
  * Usage: npm run fetch-osm
- * Data: (c) OpenStreetMap contributors, ODbL
+ * Data: (c) OpenStreetMap contributors, ODbL; BPDA Boston_Buildings (public open data)
  */
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +17,6 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_PATH = path.resolve(__dirname, '../public/data/umb-campus.geojson');
 
-// Columbia Point / UMass Boston campus + Mt. Vernon St / JFK-UMass walkway approach
 const BBOX = {
   south: 42.3102,
   west: -71.0472,
@@ -23,61 +24,127 @@ const BBOX = {
   east: -71.0322,
 };
 
-// Local tangent plane origin near the center of the UMB campus plaza
 const ORIGIN = {
   lat: 42.3138,
   lon: -71.0378,
 };
 
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-];
+const FT_TO_M = 0.3048;
+const METERS_PER_LEVEL = 3.2;
+const DEFAULT_BUILDING_HEIGHT_M = 11;
 
-const QUERY = `[out:json][timeout:45];
-(
-  way["building"](${BBOX.south},${BBOX.west},${BBOX.north},${BBOX.east});
-  relation["building"](${BBOX.south},${BBOX.west},${BBOX.north},${BBOX.east});
-  way["highway"~"^(footway|path|pedestrian|steps|cycleway|corridor|service|living_street|unclassified|residential|tertiary)$"](${BBOX.south},${BBOX.west},${BBOX.north},${BBOX.east});
-);
-out body;
->;
-out skel qt;`;
-
-// Sensible building-specific fallback heights (meters) when OSM omits height/levels.
-// Values approximate public floor counts of major UMass Boston campus structures.
-const KNOWN_HEIGHTS_M = new Map([
-  ['Healey Library', 42],
-  ['Wheatley Hall', 24],
-  ['McCormack Hall', 21],
-  ['University Hall', 22],
-  ['Integrated Sciences Complex', 25],
-  ['Campus Center', 20],
-  ['Quinn Administration Building', 15],
-  ['Clark Athletic Center', 14],
-  ['West Garage', 18],
-  ['Service and Supply Building', 10],
-  ['Utility Plant', 12],
-  ['John F. Kennedy Presidential Library and Museum', 36],
-  ['Massachusetts Archives', 16],
+// Post-2010 buildings where BPDA BLDG_HGT_2010 holds 35ft placeholders or berm artifacts
+const BPDA_SKIP_NAMES = new Set([
+  'Integrated Sciences Complex',
+  'University Hall',
+  'Massachusetts Archives',
+  'Calf Pasture Pumping Station',
 ]);
 
-const DEFAULT_BUILDING_HEIGHT_M = 11;
-const METERS_PER_LEVEL = 3.6;
+// Documented fallback heights (m) for campus buildings lacking BPDA LiDAR or OSM levels
+const KNOWN_HEIGHTS_M = new Map([
+  ['Healey Library', 43.0],
+  ['Wheatley Hall', 23.7],
+  ['McCormack Hall', 26.3],
+  ['University Hall', 22.0],
+  ['Integrated Sciences Complex', 25.0],
+  ['Campus Center', 12.3],
+  ['Quinn Administration Building', 20.4],
+  ['Clark Athletic Center', 11.5],
+  ['West Garage', 21.3],
+  ['Service and Supply Building', 7.1],
+  ['Utility Plant', 12.0],
+  ['John F. Kennedy Presidential Library and Museum', 10.5],
+  ['Massachusetts Archives', 16.0],
+]);
 
 function roundCoord(n) {
   return Math.round(n * 1e6) / 1e6;
 }
 
-function parseHeight(tags) {
+function curlJson(url) {
+  const out = execFileSync(
+    'curl',
+    [
+      '-4',
+      '-sS',
+      '--max-time',
+      '30',
+      '-H',
+      'Accept: application/json',
+      '-A',
+      'umb-campus-3d/0.2 (https://github.com/Sdefendre/umb-campus-3d)',
+      url,
+    ],
+    { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+  );
+  return JSON.parse(out);
+}
+
+function ringCentroid(ring) {
+  let sx = 0;
+  let sy = 0;
+  for (const [x, y] of ring) {
+    sx += x;
+    sy += y;
+  }
+  return [sx / ring.length, sy / ring.length];
+}
+
+function pip(pt, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (
+      yi > pt[1] !== yj > pt[1] &&
+      pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi + 1e-12) + xi
+    ) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function inGeom(pt, geom) {
+  if (!geom) return false;
+  if (geom.type === 'Polygon') return pip(pt, geom.coordinates[0]);
+  if (geom.type === 'MultiPolygon') return geom.coordinates.some((p) => pip(pt, p[0]));
+  return false;
+}
+
+function resolveBpdaHeight(geom, name, bpdaFeatures) {
+  if (name && BPDA_SKIP_NAMES.has(name)) return null;
+  const outer = geom.type === 'Polygon' ? geom.coordinates[0] : geom.coordinates[0][0];
+  const c = ringCentroid(outer);
+  const hits = bpdaFeatures.filter((bf) => {
+    const p = bf.properties;
+    if (p.Added !== null) return false;
+    if (typeof p.BLDG_HGT_2010 !== 'number' || p.BLDG_HGT_2010 < 8 || p.Shape__Area > 200000) {
+      return false;
+    }
+    const bc =
+      bf.geometry?.type === 'Polygon'
+        ? ringCentroid(bf.geometry.coordinates[0])
+        : bf.geometry?.type === 'MultiPolygon'
+          ? ringCentroid(bf.geometry.coordinates[0][0])
+          : null;
+    return inGeom(c, bf.geometry) || (bc && inGeom(bc, geom));
+  });
+  if (hits.length === 0) return null;
+  const areaSum = hits.reduce((s, h) => s + (h.properties.Shape__Area || 1), 0);
+  const wAvgM =
+    hits.reduce((s, h) => s + h.properties.BLDG_HGT_2010 * FT_TO_M * (h.properties.Shape__Area || 1), 0) /
+    areaSum;
+  return Math.round(wAvgM * 10) / 10;
+}
+
+function parseOsmHeight(tags) {
   if (tags.height) {
     const match = String(tags.height).match(/[\d.]+/);
     if (match) {
       const val = Number.parseFloat(match[0]);
-      if (Number.isFinite(val) && val > 1 && val < 300) {
-        return Math.round(val * 10) / 10;
-      }
+      if (Number.isFinite(val) && val > 1 && val < 300) return Math.round(val * 10) / 10;
     }
   }
   if (tags['building:levels']) {
@@ -93,20 +160,15 @@ function parseHeight(tags) {
 }
 
 function stitchRings(segments) {
-  const remaining = segments
-    .filter((seg) => seg.length >= 2)
-    .map((seg) => [...seg]);
+  const remaining = segments.filter((seg) => seg.length >= 2).map((seg) => [...seg]);
   const rings = [];
-
   while (remaining.length > 0) {
     let ring = remaining.shift();
     let changed = true;
-
     while (changed && ring[0] !== ring[ring.length - 1]) {
       changed = false;
       const head = ring[0];
       const tail = ring[ring.length - 1];
-
       for (let i = 0; i < remaining.length; i++) {
         const seg = remaining[i];
         if (seg[0] === tail) {
@@ -135,12 +197,10 @@ function stitchRings(segments) {
         }
       }
     }
-
     if (ring.length >= 4 && ring[0] === ring[ring.length - 1]) {
       rings.push(ring);
     }
   }
-
   return rings;
 }
 
@@ -154,48 +214,29 @@ function nodesToCoords(nodeIds, nodeMap) {
   return coords;
 }
 
-async function fetchOverpass() {
-  let lastError;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    for (const endpoint of OVERPASS_ENDPOINTS) {
-      try {
-        console.log(`Querying ${endpoint} (attempt ${attempt + 1})...`);
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          body: 'data=' + encodeURIComponent(QUERY),
-          signal: AbortSignal.timeout(25000),
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'umb-campus-3d/0.1 (https://github.com/Sdefendre/umb-campus-3d)',
-          },
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
-        }
-        return await res.json();
-      } catch (err) {
-        lastError = err;
-        console.warn(`Endpoint failed (${endpoint}):`, err.message);
-      }
-    }
-    await new Promise((r) => setTimeout(r, 2500));
-  }
-  throw lastError;
-}
-
 async function main() {
-  const osm = await fetchOverpass();
+  console.log('Fetching OSM map data...');
+  const osmUrl = `https://api.openstreetmap.org/api/0.6/map?bbox=${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}`;
+  const osm = curlJson(osmUrl);
+
+  console.log('Fetching City of Boston BPDA LiDAR building heights...');
+  const bpdaUrl =
+    `https://gis.bostonplans.org/hosting/rest/services/Boston_Buildings/FeatureServer/9/query` +
+    `?where=1%3D1&geometry=${BBOX.west},${BBOX.south},${BBOX.east},${BBOX.north}` +
+    `&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects` +
+    `&outFields=OBJECTID,BLDG_HGT_2010,Added,Shape__Area&outSR=4326&f=geojson`;
+  const bpda = curlJson(bpdaUrl);
+  const bpdaFeatures = bpda.features || [];
+
   const nodeMap = new Map();
   const wayMap = new Map();
   const relations = [];
-
   for (const el of osm.elements) {
     if (el.type === 'node') nodeMap.set(el.id, el);
     else if (el.type === 'way') wayMap.set(el.id, el);
     else if (el.type === 'relation') relations.push(el);
   }
 
-  // Track ways that are members of building relations so we don't duplicate them
   const relationBuildingWays = new Set();
   for (const rel of relations) {
     if (rel.tags?.building && Array.isArray(rel.members)) {
@@ -207,44 +248,33 @@ async function main() {
 
   const features = [];
 
-  // 1. Building ways
   for (const way of wayMap.values()) {
     const tags = way.tags || {};
     if (!tags.building) continue;
     if (relationBuildingWays.has(way.id) && !tags.name) continue;
     if (!Array.isArray(way.nodes) || way.nodes.length < 4) continue;
     if (way.nodes[0] !== way.nodes[way.nodes.length - 1]) continue;
-
     const ring = nodesToCoords(way.nodes, nodeMap);
     if (!ring || ring.length < 4) continue;
 
+    const geom = { type: 'Polygon', coordinates: [ring] };
+    const bpdaH = resolveBpdaHeight(geom, tags.name, bpdaFeatures);
     const props = {
       kind: 'building',
       osmId: `way/${way.id}`,
-      height: parseHeight(tags),
+      height: bpdaH ?? parseOsmHeight(tags),
     };
     if (tags.name) props.name = tags.name;
     if (tags['building:levels']) props.levels = Number.parseFloat(tags['building:levels']) || undefined;
     if (tags.building !== 'yes') props.buildingType = tags.building;
-
-    features.push({
-      type: 'Feature',
-      properties: props,
-      geometry: {
-        type: 'Polygon',
-        coordinates: [ring],
-      },
-    });
+    features.push({ type: 'Feature', properties: props, geometry: geom });
   }
 
-  // 2. Building multipolygon relations (e.g. Integrated Sciences Complex)
   for (const rel of relations) {
     const tags = rel.tags || {};
     if (!tags.building || !Array.isArray(rel.members)) continue;
-
     const outerSegs = [];
     const innerSegs = [];
-
     for (const m of rel.members) {
       if (m.type !== 'way') continue;
       const w = wayMap.get(m.ref);
@@ -252,93 +282,51 @@ async function main() {
       if (m.role === 'inner') innerSegs.push(w.nodes);
       else outerSegs.push(w.nodes);
     }
-
-    const outerRings = stitchRings(outerSegs)
-      .map((r) => nodesToCoords(r, nodeMap))
-      .filter(Boolean);
-    const innerRings = stitchRings(innerSegs)
-      .map((r) => nodesToCoords(r, nodeMap))
-      .filter(Boolean);
-
+    const outerRings = stitchRings(outerSegs).map((r) => nodesToCoords(r, nodeMap)).filter(Boolean);
+    const innerRings = stitchRings(innerSegs).map((r) => nodesToCoords(r, nodeMap)).filter(Boolean);
     if (outerRings.length === 0) continue;
 
+    const geom =
+      outerRings.length === 1
+        ? { type: 'Polygon', coordinates: [outerRings[0], ...innerRings] }
+        : {
+            type: 'MultiPolygon',
+            coordinates: outerRings.map((ring, idx) => (idx === 0 ? [ring, ...innerRings] : [ring])),
+          };
+    const bpdaH = resolveBpdaHeight(geom, tags.name, bpdaFeatures);
     const props = {
       kind: 'building',
       osmId: `relation/${rel.id}`,
-      height: parseHeight(tags),
+      height: bpdaH ?? parseOsmHeight(tags),
     };
     if (tags.name) props.name = tags.name;
     if (tags['building:levels']) props.levels = Number.parseFloat(tags['building:levels']) || undefined;
-
-    if (outerRings.length === 1) {
-      features.push({
-        type: 'Feature',
-        properties: props,
-        geometry: {
-          type: 'Polygon',
-          coordinates: [outerRings[0], ...innerRings],
-        },
-      });
-    } else {
-      features.push({
-        type: 'Feature',
-        properties: props,
-        geometry: {
-          type: 'MultiPolygon',
-          coordinates: outerRings.map((ring, idx) => (idx === 0 ? [ring, ...innerRings] : [ring])),
-        },
-      });
-    }
+    features.push({ type: 'Feature', properties: props, geometry: geom });
   }
 
-  // 3. Walkable paths / footways / campus connectors
   const WALKABLE_HIGHWAYS = new Set([
-    'footway',
-    'path',
-    'pedestrian',
-    'steps',
-    'cycleway',
-    'corridor',
-    'service',
-    'living_street',
-    'unclassified',
-    'residential',
-    'tertiary',
+    'footway', 'path', 'pedestrian', 'steps', 'cycleway', 'corridor',
+    'service', 'living_street', 'unclassified', 'residential', 'tertiary',
   ]);
-
   for (const way of wayMap.values()) {
     const tags = way.tags || {};
     if (!tags.highway || !WALKABLE_HIGHWAYS.has(tags.highway)) continue;
     if (tags.access === 'private' && tags.foot !== 'yes') continue;
     if (tags.foot === 'no') continue;
     if (!Array.isArray(way.nodes) || way.nodes.length < 2) continue;
-
     const coords = nodesToCoords(way.nodes, nodeMap);
     if (!coords || coords.length < 2) continue;
-
-    const props = {
-      kind: 'path',
-      osmId: `way/${way.id}`,
-      highway: tags.highway,
-    };
+    const props = { kind: 'path', osmId: `way/${way.id}`, highway: tags.highway };
     if (tags.name) props.name = tags.name;
     if (tags.indoor === 'yes' || tags.covered === 'yes') props.covered = true;
-
-    features.push({
-      type: 'Feature',
-      properties: props,
-      geometry: {
-        type: 'LineString',
-        coordinates: coords,
-      },
-    });
+    features.push({ type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: coords } });
   }
 
   const geojson = {
     type: 'FeatureCollection',
     metadata: {
-      attribution: '(c) OpenStreetMap contributors, ODbL',
-      source: 'OpenStreetMap via Overpass API',
+      attribution: '(c) OpenStreetMap contributors, ODbL; BPDA Boston_Buildings LiDAR',
+      source: 'OpenStreetMap v0.6 API + City of Boston BPDA Boston_Buildings FeatureServer Layer 9',
       fetchedAt: new Date().toISOString(),
       bbox: BBOX,
       origin: ORIGIN,
@@ -349,12 +337,9 @@ async function main() {
   await fs.mkdir(path.dirname(OUT_PATH), { recursive: true });
   const json = JSON.stringify(geojson);
   await fs.writeFile(OUT_PATH, json, 'utf8');
-
-  const buildingCount = features.filter((f) => f.properties.kind === 'building').length;
-  const pathCount = features.filter((f) => f.properties.kind === 'path').length;
-  console.log(
-    `Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${buildingCount} buildings, ${pathCount} paths.`
-  );
+  const bCount = features.filter((f) => f.properties.kind === 'building').length;
+  const pCount = features.filter((f) => f.properties.kind === 'path').length;
+  console.log(`Wrote ${OUT_PATH} (${(json.length / 1024).toFixed(1)} KB): ${bCount} buildings, ${pCount} paths.`);
 }
 
 main().catch((err) => {
